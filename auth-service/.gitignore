@@ -1,0 +1,7 @@
+# Service-specific binaries
+auth-service
+auth-service.exe
+
+# Local config files
+config-local.yaml
+.env.local

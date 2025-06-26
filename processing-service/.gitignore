@@ -1,0 +1,11 @@
+# Service-specific binaries
+processing-service
+processing-service.exe
+
+# Processing temp files
+/processing-temp/
+/ffmpeg-temp/
+
+# Local config files
+config-local.yaml
+.env.local

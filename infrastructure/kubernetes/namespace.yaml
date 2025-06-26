@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fiapx
+  labels:
+    name: fiapx
+    environment: production
+    managed-by: fiapx-team
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: fiapx-quota
+  namespace: fiapx
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: 16Gi
+    limits.cpu: "16"
+    limits.memory: 32Gi
+    pods: "50"
+    services: "30"
+    persistentvolumeclaims: "20"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: fiapx-limits
+  namespace: fiapx
+spec:
+  limits:
+  - default:
+      memory: 512Mi
+      cpu: 500m
+    defaultRequest:
+      memory: 256Mi
+      cpu: 200m
+    type: Container

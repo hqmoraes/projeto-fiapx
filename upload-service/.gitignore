@@ -1,0 +1,10 @@
+# Service-specific binaries
+upload-service
+upload-service.exe
+
+# Temporary upload files
+/temp-uploads/
+
+# Local config files
+config-local.yaml
+.env.local

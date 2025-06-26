@@ -1,0 +1,240 @@
+version: '3.8'
+
+services:
+  # API Gateway
+  api-gateway:
+    build:
+      context: ../api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8081
+      - UPLOAD_SERVICE_URL=http://upload-service:8082
+      - STORAGE_SERVICE_URL=http://storage-service:8084
+      - LOG_LEVEL=debug
+    depends_on:
+      - auth-service
+      - upload-service
+      - storage-service
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ../auth-service
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=fiapx_auth
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - JWT_SECRET=dev_secret_key_change_in_production
+      - LOG_LEVEL=debug
+    depends_on:
+      - postgres
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # Upload Service
+  upload-service:
+    build:
+      context: ../upload-service
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=fiapx_upload
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - UPLOAD_TEMP_DIR=/tmp/uploads
+      - LOG_LEVEL=debug
+    volumes:
+      - upload_temp:/tmp/uploads
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # Processing Service
+  processing-service:
+    build:
+      context: ../processing-service
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - REDIS_URL=redis:6379
+      - PROCESSING_TEMP_DIR=/tmp/processing
+      - LOG_LEVEL=debug
+    volumes:
+      - processing_temp:/tmp/processing
+    depends_on:
+      - rabbitmq
+      - redis
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # Storage Service
+  storage-service:
+    build:
+      context: ../storage-service
+      dockerfile: Dockerfile
+    ports:
+      - "8084:8084"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=fiapx_storage
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_USE_SSL=false
+      - MINIO_BUCKET=videos
+      - LOG_LEVEL=debug
+    depends_on:
+      - postgres
+      - rabbitmq
+      - minio
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_MULTIPLE_DATABASES=fiapx_auth,fiapx_upload,fiapx_storage
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # MinIO (S3-compatible storage)
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # MinIO Client (for bucket creation)
+  minio-client:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10 &&
+      mc config host add myminio http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing myminio/videos &&
+      exit 0
+      "
+    networks:
+      - fiapx-network
+
+  # Prometheus (monitoring)
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+  # Grafana (visualization)
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - fiapx-network
+    restart: unless-stopped
+
+networks:
+  fiapx-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:
+  upload_temp:
+  processing_temp:
+  prometheus_data:
+  grafana_data:

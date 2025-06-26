@@ -1,0 +1,30 @@
+# Configuração do API Gateway
+server:
+  port: 8080
+  timeout: 60s
+
+cors:
+  allowed_origins: "*"
+  allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  allowed_headers: ["Accept", "Authorization", "Content-Type", "X-CSRF-Token"]
+  exposed_headers: ["Link"]
+  allow_credentials: true
+  max_age: 300
+
+services:
+  auth:
+    url: http://auth-service:8081
+  upload:
+    url: http://upload-service:8082
+  processing:
+    url: http://processing-service:8083
+  storage:
+    url: http://storage-service:8084
+
+jwt:
+  secret: "secret_change_me_in_production"
+  expiration: 24h
+
+rate_limiting:
+  enabled: true
+  requests_per_minute: 100

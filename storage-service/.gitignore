@@ -1,0 +1,10 @@
+# Service-specific binaries
+storage-service
+storage-service.exe
+
+# Local storage cache
+/local-cache/
+
+# Local config files
+config-local.yaml
+.env.local

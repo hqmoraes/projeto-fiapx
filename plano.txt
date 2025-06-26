@@ -1,0 +1,184 @@
+Plano de Refatoração - Sistema de Processamento de Vídeos FIAP X
+
+1. Diagnóstico do Sistema Atual
+Problemas Identificados:
+Monolítico: Todo o código está em um único arquivo main.go, sem separação de responsabilidades.
+Sem Persistência: Os dados são armazenados apenas em arquivos, sem uso de banco de dados.
+Sem Autenticação: Não existe proteção por usuário e senha.
+Processamento Síncrono: Os vídeos são processados de forma síncrona, bloqueando a requisição.
+Sem Escalabilidade: Não está preparado para escalar horizontalmente.
+Sem Monitoramento: Não existe integração com ferramentas de monitoramento.
+Sem Testes: Não existem testes automatizados.
+Dockerfile Simplificado: Como comentado no próprio arquivo, o Dockerfile não segue boas práticas.
+
+2. Arquitetura Proposta
+Visão Geral:
+Proponho uma arquitetura de microsserviços com as seguintes componentes:
+
+API Gateway: Ponto de entrada para a aplicação, gerencia autenticação e roteamento.
+Serviço de Autenticação: Gerencia usuários, login e tokens JWT.
+Serviço de Upload: Responsável por receber e validar os vídeos.
+Serviço de Processamento: Processa os vídeos utilizando filas para garantir escalabilidade.
+Serviço de Notificação: Envia notificações por e-mail ou outros canais.
+Frontend SPA: Interface de usuário desacoplada do backend.
+Tecnologias Propostas:
+Backend:
+
+Go para os microsserviços
+gRPC para comunicação entre serviços
+RESTful APIs para comunicação externa
+Mensageria:
+
+RabbitMQ para filas de processamento de vídeos
+Persistência:
+
+PostgreSQL para dados relacionais (usuários, metadados de vídeos)
+Redis para cache e sessões
+MinIO ou S3 para armazenamento de vídeos e frames
+Infraestrutura:
+
+Docker para containerização
+Kubernetes para orquestração
+Prometheus + Grafana para monitoramento
+ELK Stack para logs centralizados
+CI/CD:
+
+GitHub Actions para pipelines de CI/CD
+Testes automatizados (unitários, integração, e2e)
+
+3. Plano de Implementação
+
+Fase 1: Refatoração Inicial e Estruturação
+Reorganização do Código:
+
+Adotar o padrão de projeto Clean Architecture
+Separar em camadas: controllers, services, repositories, entities
+Estruturar o projeto seguindo os padrões Go
+Adição de Persistência:
+
+Implementar repositórios para PostgreSQL
+Migrar armazenamento de arquivos para MinIO/S3
+Configurar Redis para cache
+Implementação de Autenticação:
+
+Criar sistema de usuários com JWT
+Implementar middleware de autenticação
+
+Fase 2: Decomposição em Microsserviços
+Extração de Serviços:
+
+Extrair lógica de upload para um microsserviço
+Extrair lógica de processamento para outro microsserviço
+Criar serviço de notificação
+Implementação de Mensageria:
+
+Configurar RabbitMQ
+Implementar produtores e consumidores para processamento assíncrono de vídeos
+API Gateway:
+
+Implementar gateway para rotear requisições
+Configurar balanceamento de carga
+
+Fase 3: Infraestrutura e DevOps
+Containerização:
+
+Criar Dockerfiles otimizados para cada serviço
+Configurar Docker Compose para desenvolvimento
+Orquestração com Kubernetes:
+
+Configurar manifestos Kubernetes
+Implementar HPA (Horizontal Pod Autoscaler)
+Monitoramento e Observabilidade:
+
+Configurar Prometheus e Grafana
+Implementar logs estruturados com ELK Stack
+CI/CD:
+
+Configurar GitHub Actions
+Implementar pipelines de build, teste e deploy
+
+Fase 4: Testes e Qualidade
+Implementação de Testes:
+
+Testes unitários para cada componente
+Testes de integração para fluxos principais
+Testes e2e para validar o sistema como um todo
+Qualidade de Código:
+
+Configurar linters e formatadores
+Implementar análise estática de código
+Definir limites de cobertura de testes
+
+4. Detalhamento da Nova Estrutura de Diretórios
+fiap-x/
+├── api-gateway/
+│   ├── cmd/
+│   ├── internal/
+│   ├── Dockerfile
+│   └── ...
+├── auth-service/
+│   ├── cmd/
+│   ├── internal/
+│   ├── Dockerfile
+│   └── ...
+├── upload-service/
+│   ├── cmd/
+│   ├── internal/
+│   ├── Dockerfile
+│   └── ...
+├── processing-service/
+│   ├── cmd/
+│   ├── internal/
+│   ├── Dockerfile
+│   └── ...
+├── notification-service/
+│   ├── cmd/
+│   ├── internal/
+│   ├── Dockerfile
+│   └── ...
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   ├── Dockerfile
+│   └── ...
+├── infrastructure/
+│   ├── kubernetes/
+│   ├── docker-compose.yml
+│   ├── scripts/
+│   └── ...
+├── pkg/
+│   ├── common/
+│   ├── models/
+│   └── ...
+└── README.md
+
+5. Próximos Passos Imediatos
+Extrair Entidades e Modelos:
+
+Definir estruturas de dados comuns
+Implementar DTOs (Data Transfer Objects)
+Refatorar Função de Processamento de Vídeo:
+
+Tornar assíncrona usando mensageria
+Adicionar retentativas em caso de falha
+Implementar Banco de Dados:
+
+Definir esquema de dados
+Criar migrations
+Implementar repositórios
+Configurar Ambiente Docker Inicial:
+
+Criar docker-compose.yml para desenvolvimento
+Melhorar os Dockerfiles seguindo boas práticas
+
+6. Considerações sobre Escalabilidade
+Processamento Distribuído: O uso de filas permitirá distribuir o processamento de vídeos entre múltiplas instâncias.
+Stateless: Os serviços serão projetados para serem stateless, facilitando a escalabilidade horizontal.
+Cache: Implementação de Redis para reduzir carga no banco de dados.
+Armazenamento Distribuído: Uso de soluções como MinIO ou S3 para armazenar vídeos e frames.
+
+7. Monitoramento e Observabilidade
+Métricas: Implementação de métricas para cada serviço usando Prometheus.
+Dashboards: Configuração de dashboards no Grafana para visualização de métricas.
+Logs Centralizados: Uso de ELK Stack para centralizar e analisar logs.
+Tracing: Implementação de tracing distribuído para identificar gargalos.

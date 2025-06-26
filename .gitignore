@@ -1,0 +1,138 @@
+*.zip
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go module cache
+go.sum
+
+# Build artifacts
+/build/
+/dist/
+/bin/
+
+# Docker build context
+*.tar
+*.tar.gz
+
+# Kubernetes secrets and sensitive files
+*-secret.yaml
+*secret*.yaml
+kubeconfig*.yaml
+!kubeconfig-template.yaml
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+/temp/
+/tmp/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache directories
+.cache/
+/node_modules/
+
+# Operating system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Local development files
+/uploads/*
+!/uploads/.gitkeep
+/outputs/*
+!/outputs/.gitkeep
+
+# Docker volumes and data
+/data/
+/volumes/
+
+# Terraform files (if used)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Local scripts and configs
+local-*
+dev-*
+test-*
+*-local.*
+
+# Certificate files
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Temporary Kubernetes manifests
+*-generated.yaml
+*-temp.yaml
+
+# Build and deployment artifacts
+deployment.tar
+images.tar
+*.image
+
+# MacOS specific
+__MACOSX/
+
+# MinIO data
+minio-data/
+
+# PostgreSQL data
+postgres-data/
+
+# Redis data
+redis-data/
+
+# RabbitMQ data
+rabbitmq-data/
+
+# Monitoring and metrics
+/prometheus-data/
+/grafana-data/
