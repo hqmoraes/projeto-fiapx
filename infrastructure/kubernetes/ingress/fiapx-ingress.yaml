@@ -2,10 +2,14 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: fiapx-ingress
-  namespace: default
+  namespace: fiapx
   annotations:
     kubernetes.io/ingress.class: "nginx"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
     nginx.ingress.kubernetes.io/cors-enable: "true"
     nginx.ingress.kubernetes.io/cors-allow-origin: "https://main.d13ms2nooclzwx.amplifyapp.com,https://d13ms2nooclzwx.amplifyapp.com"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
@@ -22,32 +26,32 @@ spec:
     http:
       paths:
       # Auth Service
-      - path: /auth
-        pathType: Prefix
+      - path: /auth/(.*)
+        pathType: ImplementationSpecific
         backend:
           service:
             name: auth-service
             port:
-              number: 8080
+              number: 8082
       # Upload Service  
-      - path: /upload
-        pathType: Prefix
+      - path: /upload/(.*)
+        pathType: ImplementationSpecific
         backend:
           service:
             name: upload-service
             port:
               number: 8080
       # Processing Service
-      - path: /processing
-        pathType: Prefix
+      - path: /processing/(.*)
+        pathType: ImplementationSpecific
         backend:
           service:
             name: processing-service
             port:
               number: 8080
       # Storage Service
-      - path: /storage
-        pathType: Prefix
+      - path: /storage/(.*)
+        pathType: ImplementationSpecific
         backend:
           service:
             name: storage-service
