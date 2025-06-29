@@ -20,7 +20,7 @@ spec:
         kubernetes.io/hostname: ip-172-31-200-13
       containers:
       - name: storage-service
-        image: hmoraes/fiapx-storage-service:v1.8
+        image: hmoraes/fiapx-storage-service:v1.9
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080

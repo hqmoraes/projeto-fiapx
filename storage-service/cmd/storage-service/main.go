@@ -295,14 +295,35 @@ func (s *StorageService) StatsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Simular estatísticas (seria obtido do banco de dados na prática, filtrado por userID)
+	// Calcular estatísticas reais do videosStore
+	storeMutex.RLock()
+	var totalVideos, completed, processing, failed int
+	var totalSize int64
+	
+	for _, video := range videosStore {
+		if video.UserID == userID {
+			totalVideos++
+			switch video.Status {
+			case "completed":
+				completed++
+			case "processing":
+				processing++
+			case "failed":
+				failed++
+			}
+			// Simular tamanho (em produção viria dos metadados reais)
+			totalSize += 1048576 // 1MB por vídeo como exemplo
+		}
+	}
+	storeMutex.RUnlock()
+	
 	stats := map[string]interface{}{
-		"total_videos": 0,
-		"total_size": 0,
-		"processing": 0,
-		"completed": 0,
-		"failed": 0,
-		"user_id": userID,
+		"total_videos": totalVideos,
+		"total_size":   totalSize,
+		"processing":   processing,
+		"completed":    completed,
+		"failed":       failed,
+		"user_id":      userID,
 	}
 	
 	w.Header().Set("Content-Type", "application/json")
@@ -396,6 +417,40 @@ func (ss *StorageService) DeleteVideoHandler(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+func (ss *StorageService) DownloadVideoHandler(w http.ResponseWriter, r *http.Request) {
+	videoID := mux.Vars(r)["id"]
+	
+	// Extrair user ID do JWT token
+	authHeader := r.Header.Get("Authorization")
+	userID, err := getUserIDFromToken(authHeader)
+	if err != nil {
+		http.Error(w, "Token de autenticação inválido", http.StatusUnauthorized)
+		return
+	}
+
+	// Verificar se o vídeo pertence ao usuário
+	storeMutex.RLock()
+	video, exists := videosStore[videoID]
+	if !exists || video.UserID != userID {
+		storeMutex.RUnlock()
+		http.Error(w, "Vídeo não encontrado", http.StatusNotFound)
+		return
+	}
+	storeMutex.RUnlock()
+
+	// Simular criação de ZIP com frames (em produção, criaria ZIP real)
+	zipContent := fmt.Sprintf("# Video Frames Package\nVideo ID: %s\nUser ID: %d\nResolutions: %v\nStatus: %s\n\n# This would contain actual video frames in production", 
+		video.VideoID, video.UserID, video.Resolutions, video.Status)
+
+	// Configurar headers para download
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"video-%s-frames.zip\"", videoID))
+	w.Header().Set("Content-Length", strconv.Itoa(len(zipContent)))
+
+	// Enviar conteúdo simulado
+	w.Write([]byte(zipContent))
+}
+
 var ctx = context.Background()
 
 func main() {
@@ -420,6 +475,7 @@ func main() {
 	r.HandleFunc("/videos/{id}", storageService.DeleteVideoHandler).Methods("DELETE")
 	r.HandleFunc("/videos", storageService.ListVideosHandler).Methods("GET")
 	r.HandleFunc("/stats", storageService.StatsHandler).Methods("GET")
+	r.HandleFunc("/download/{id}", storageService.DownloadVideoHandler).Methods("GET")
 
 	// Configurar CORS
 	c := cors.New(cors.Options{
