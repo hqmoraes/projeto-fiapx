@@ -34,7 +34,7 @@ spec:
         kubernetes.io/hostname: ip-172-31-200-13
       containers:
       - name: upload-service
-        image: hmoraes/fiapx-upload-service:v1.2
+        image: hmoraes/fiapx-upload-service:v1.4
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080

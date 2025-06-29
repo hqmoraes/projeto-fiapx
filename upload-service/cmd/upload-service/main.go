@@ -103,8 +103,14 @@ func NewUploadService() (*UploadService, error) {
 }
 
 func (us *UploadService) UploadVideoHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("=== UPLOAD REQUEST RECEBIDA ===")
+	log.Printf("Método: %s", r.Method)
+	log.Printf("URL: %s", r.URL.String())
+	log.Printf("Content-Type: %s", r.Header.Get("Content-Type"))
+	
 	// Verificar método
 	if r.Method != http.MethodPost {
+		log.Printf("Método não permitido: %s", r.Method)
 		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
 		return
 	}
@@ -112,30 +118,46 @@ func (us *UploadService) UploadVideoHandler(w http.ResponseWriter, r *http.Reque
 	// Parse do multipart form
 	err := r.ParseMultipartForm(100 << 20) // 100 MB max
 	if err != nil {
+		log.Printf("Erro ao processar formulário: %v", err)
 		http.Error(w, "Erro ao processar formulário", http.StatusBadRequest)
 		return
 	}
+	
+	log.Printf("Form keys disponíveis: %v", r.MultipartForm.File)
 
-	// Obter arquivo
+	// Obter arquivo - tentar 'video' primeiro, depois 'file'
 	file, header, err := r.FormFile("video")
 	if err != nil {
-		http.Error(w, "Arquivo não encontrado", http.StatusBadRequest)
-		return
+		log.Printf("Campo 'video' não encontrado, tentando 'file': %v", err)
+		file, header, err = r.FormFile("file")
+		if err != nil {
+			log.Printf("Nenhum arquivo encontrado em 'video' ou 'file': %v", err)
+			http.Error(w, "Arquivo não encontrado", http.StatusBadRequest)
+			return
+		}
 	}
 	defer file.Close()
+	
+	log.Printf("Arquivo obtido: %s (%d bytes)", header.Filename, header.Size)
 
 	// Validar tipo de arquivo
 	if !isValidVideoFile(header.Filename) {
+		log.Printf("Tipo de arquivo inválido: %s", header.Filename)
 		http.Error(w, "Tipo de arquivo não suportado", http.StatusBadRequest)
 		return
 	}
+	
+	log.Printf("Arquivo validado com sucesso")
 
 	// Gerar ID único para o vídeo
 	videoID := generateVideoID()
 	fileExt := filepath.Ext(header.Filename)
 	objectName := fmt.Sprintf("%s%s", videoID, fileExt)
+	
+	log.Printf("VideoID gerado: %s, ObjectName: %s", videoID, objectName)
 
 	// Upload para MinIO
+	log.Printf("Iniciando upload para MinIO...")
 	_, err = us.MinioClient.PutObject(ctx, "video-uploads", objectName, file, header.Size, minio.PutObjectOptions{
 		ContentType: "video/*",
 	})
@@ -144,6 +166,8 @@ func (us *UploadService) UploadVideoHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Erro interno do servidor", http.StatusInternalServerError)
 		return
 	}
+	
+	log.Printf("Upload para MinIO concluído com sucesso!")
 
 	// Extrair user_id do token JWT
 	authHeader := r.Header.Get("Authorization")
@@ -184,6 +208,8 @@ func (us *UploadService) UploadVideoHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Erro interno do servidor", http.StatusInternalServerError)
 		return
 	}
+	
+	log.Printf("Mensagem enviada para RabbitMQ com sucesso!")
 
 	// Resposta de sucesso
 	response := UploadResponse{
@@ -193,6 +219,9 @@ func (us *UploadService) UploadVideoHandler(w http.ResponseWriter, r *http.Reque
 		Status:     "uploaded",
 		UploadedAt: time.Now(),
 	}
+	
+	log.Printf("=== UPLOAD CONCLUÍDO COM SUCESSO ===")
+	log.Printf("VideoID: %s, Size: %d bytes, UserID: %s", videoID, header.Size, userID)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)

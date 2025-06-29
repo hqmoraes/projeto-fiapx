@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: hmoraes/fiapx-frontend:v2.5
+        image: hmoraes/fiapx-frontend:v2.3
         imagePullPolicy: Always
         ports:
         - containerPort: 80

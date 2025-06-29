@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -11,8 +12,6 @@ import (
 	"strings"
 	"sync"
 	"strconv"
-	"archive/zip"
-	"bytes"
 
 	"github.com/gorilla/mux"
 	"github.com/minio/minio-go/v7"
@@ -46,21 +45,25 @@ func initSampleData() {
 	defer storeMutex.Unlock()
 	
 	videosStore["video_1234567890"] = &VideoData{
-		VideoID:     "video_1234567890",
-		Title:       "Vídeo de exemplo 1",
-		Status:      "completed",
-		UploadedAt:  time.Date(2025, 6, 26, 14, 0, 0, 0, time.UTC),
-		Resolutions: []string{"480p", "720p", "1080p"},
-		UserID:      7,
+		VideoID:       "video_1234567890",
+		Title:         "Vídeo de exemplo 1",
+		Status:        "completed",
+		UploadedAt:    time.Date(2025, 6, 26, 14, 0, 0, 0, time.UTC),
+		FrameCount:    120,
+		ZipSize:       2048000,
+		ZipObjectName: "frames_video_1234567890.zip",
+		UserID:        7,
 	}
 	
 	videosStore["video_0987654321"] = &VideoData{
-		VideoID:     "video_0987654321",
-		Title:       "Vídeo de exemplo 2",
-		Status:      "processing",
-		UploadedAt:  time.Date(2025, 6, 26, 15, 0, 0, 0, time.UTC),
-		Resolutions: []string{"480p"},
-		UserID:      7,
+		VideoID:       "video_0987654321",
+		Title:         "Vídeo de exemplo 2",
+		Status:        "processing",
+		UploadedAt:    time.Date(2025, 6, 26, 15, 0, 0, 0, time.UTC),
+		FrameCount:    0,
+		ZipSize:       0,
+		ZipObjectName: "",
+		UserID:        7,
 	}
 }
 
@@ -74,7 +77,9 @@ type ProcessingResult struct {
 	VideoID       string                 `json:"video_id"`
 	Status        string                 `json:"status"`
 	ProcessedAt   time.Time              `json:"processed_at"`
-	Resolutions   map[string]string      `json:"resolutions"`
+	FrameCount    int                    `json:"frame_count"`
+	ZipSize       int64                  `json:"zip_size"`
+	ZipObjectName string                 `json:"zip_object_name"`
 	Metadata      map[string]interface{} `json:"metadata"`
 	UserID        string                 `json:"user_id"`
 	Error         string                 `json:"error,omitempty"`
@@ -177,28 +182,32 @@ func (ss *StorageService) storeVideoMetadata(result ProcessingResult) error {
 		}
 	}
 	
-	// Converter resolutions map para slice
-	var resolutions []string
-	for resolution := range result.Resolutions {
-		resolutions = append(resolutions, resolution)
-	}
-	
 	// Criar entrada no videosStore
 	storeMutex.Lock()
 	videosStore[result.VideoID] = &VideoData{
-		VideoID:     result.VideoID,
-		Title:       fmt.Sprintf("Video %s", result.VideoID),
-		Status:      result.Status,
-		UploadedAt:  result.ProcessedAt,
-		Resolutions: resolutions,
-		UserID:      userIDInt,
+		VideoID:       result.VideoID,
+		Title:         fmt.Sprintf("Video %s", result.VideoID),
+		Status:        result.Status,
+		UploadedAt:    result.ProcessedAt,
+		FrameCount:    result.FrameCount,
+		ZipSize:       result.ZipSize,
+		ZipObjectName: result.ZipObjectName,
+		UserID:        userIDInt,
 	}
 	storeMutex.Unlock()
+	
+	log.Printf("=== VIDEO DATA SALVA ===")
+	log.Printf("VideoID: %s", result.VideoID)
+	log.Printf("UserID: %d", userIDInt)
+	log.Printf("FrameCount: %d", result.FrameCount)
+	log.Printf("ZipSize: %d", result.ZipSize)
+	log.Printf("ZipObjectName: %s", result.ZipObjectName)
+	log.Printf("Status: %s", result.Status)
 	
 	// Em produção, seria armazenado em banco de dados
 	metadata := VideoMetadata{
 		VideoID:     result.VideoID,
-		Resolutions: result.Resolutions,
+		Resolutions: make(map[string]string), // Manter compatibilidade
 		Metadata:    result.Metadata,
 		Status:      result.Status,
 		CreatedAt:   result.ProcessedAt,
@@ -266,7 +275,8 @@ func (ss *StorageService) ListVideosHandler(w http.ResponseWriter, r *http.Reque
 				"title":       video.Title,
 				"status":      video.Status,
 				"uploaded_at": video.UploadedAt.Format(time.RFC3339),
-				"resolutions": video.Resolutions,
+				"frame_count": video.FrameCount,
+				"zip_size":    video.ZipSize,
 				"user_id":     video.UserID,
 			})
 		}
@@ -303,6 +313,7 @@ func (s *StorageService) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	storeMutex.RLock()
 	var totalVideos, completed, processing, failed int
 	var totalSize int64
+	var totalFrames int
 	
 	for _, video := range videosStore {
 		if video.UserID == userID {
@@ -310,13 +321,13 @@ func (s *StorageService) StatsHandler(w http.ResponseWriter, r *http.Request) {
 			switch video.Status {
 			case "completed":
 				completed++
+				totalSize += video.ZipSize
+				totalFrames += video.FrameCount
 			case "processing":
 				processing++
 			case "failed":
 				failed++
 			}
-			// Simular tamanho (em produção viria dos metadados reais)
-			totalSize += 1048576 // 1MB por vídeo como exemplo
 		}
 	}
 	storeMutex.RUnlock()
@@ -324,6 +335,7 @@ func (s *StorageService) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	stats := map[string]interface{}{
 		"total_videos": totalVideos,
 		"total_size":   totalSize,
+		"total_frames": totalFrames,
 		"processing":   processing,
 		"completed":    completed,
 		"failed":       failed,
@@ -440,67 +452,48 @@ func (ss *StorageService) DownloadVideoHandler(w http.ResponseWriter, r *http.Re
 		http.Error(w, "Vídeo não encontrado", http.StatusNotFound)
 		return
 	}
+	
+	// Verificar se o vídeo foi processado
+	if video.Status != "completed" || video.ZipObjectName == "" {
+		storeMutex.RUnlock()
+		http.Error(w, "Vídeo ainda não foi processado", http.StatusNotFound)
+		return
+	}
+	
+	zipObjectName := video.ZipObjectName
 	storeMutex.RUnlock()
 
-	// Criar ZIP em memória
-	var buf bytes.Buffer
-	zipWriter := zip.NewWriter(&buf)
-
-	// Adicionar arquivo info.txt
-	infoContent := fmt.Sprintf(`Video Processing Results
-========================
-Video ID: %s
-User ID: %d
-Status: %s
-Resolutions: %v
-Processed At: %s
-
-Este é um arquivo simulado.
-Em produção, conteria os frames reais do vídeo processado.
-`, video.VideoID, video.UserID, video.Status, video.Resolutions, video.UploadedAt.Format(time.RFC3339))
-
-	infoFile, err := zipWriter.Create("info.txt")
+	// Baixar ZIP do MinIO
+	ctx := context.Background()
+	object, err := ss.MinioClient.GetObject(ctx, "video-processed", zipObjectName, minio.GetObjectOptions{})
 	if err != nil {
-		http.Error(w, "Erro ao criar ZIP", http.StatusInternalServerError)
+		log.Printf("Erro ao baixar ZIP do MinIO: %v", err)
+		http.Error(w, "Erro ao baixar arquivo", http.StatusInternalServerError)
 		return
 	}
-	_, err = infoFile.Write([]byte(infoContent))
-	if err != nil {
-		http.Error(w, "Erro ao criar ZIP", http.StatusInternalServerError)
-		return
-	}
+	defer object.Close()
 
-	// Adicionar arquivos simulados para cada resolução
-	for _, resolution := range video.Resolutions {
-		fileName := fmt.Sprintf("frames_%s.txt", resolution)
-		frameContent := fmt.Sprintf("Frames simulados para resolução %s\nVideo: %s\nFrame 001: [dados simulados]\nFrame 002: [dados simulados]\nFrame 003: [dados simulados]\n", resolution, video.VideoID)
-		
-		frameFile, err := zipWriter.Create(fileName)
-		if err != nil {
-			http.Error(w, "Erro ao criar ZIP", http.StatusInternalServerError)
-			return
-		}
-		_, err = frameFile.Write([]byte(frameContent))
-		if err != nil {
-			http.Error(w, "Erro ao criar ZIP", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	// Fechar o zip writer
-	err = zipWriter.Close()
+	// Obter informações do objeto
+	objInfo, err := object.Stat()
 	if err != nil {
-		http.Error(w, "Erro ao finalizar ZIP", http.StatusInternalServerError)
+		log.Printf("Erro ao obter informações do objeto: %v", err)
+		http.Error(w, "Erro ao baixar arquivo", http.StatusInternalServerError)
 		return
 	}
 
 	// Configurar headers para download
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"video-%s-frames.zip\"", videoID))
-	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", zipObjectName))
+	w.Header().Set("Content-Length", strconv.FormatInt(objInfo.Size, 10))
 
-	// Enviar ZIP
-	w.Write(buf.Bytes())
+	// Copiar dados do MinIO para o response
+	_, err = io.Copy(w, object)
+	if err != nil {
+		log.Printf("Erro ao copiar dados do ZIP: %v", err)
+		return
+	}
+
+	log.Printf("ZIP baixado com sucesso: %s (%d bytes)", zipObjectName, objInfo.Size)
 }
 
 var ctx = context.Background()
