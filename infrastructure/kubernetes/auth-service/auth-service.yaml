@@ -33,7 +33,7 @@ spec:
         kubernetes.io/hostname: ip-172-31-200-13
       containers:
       - name: auth-service
-        image: hmoraes/auth-service:latest
+        image: hmoraes/fiapx-auth-service:v1.2
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8081

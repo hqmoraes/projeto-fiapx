@@ -13,6 +13,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/streadway/amqp"
+	"github.com/rs/cors"
 )
 
 type ProcessingService struct {
@@ -35,6 +36,7 @@ type ProcessingResult struct {
 	ProcessedAt   time.Time              `json:"processed_at"`
 	Resolutions   map[string]string      `json:"resolutions"`
 	Metadata      map[string]interface{} `json:"metadata"`
+	UserID        string                 `json:"user_id"`
 	Error         string                 `json:"error,omitempty"`
 }
 
@@ -159,6 +161,7 @@ func (ps *ProcessingService) processVideo(msg ProcessingMessage) ProcessingResul
 		ProcessedAt: time.Now(),
 		Resolutions: make(map[string]string),
 		Metadata:    make(map[string]interface{}),
+		UserID:      msg.UserID,
 	}
 
 	// Simular processamento (em produção, aqui seria FFmpeg)
@@ -230,8 +233,19 @@ func main() {
 	r.HandleFunc("/health", processingService.HealthHandler).Methods("GET")
 	r.HandleFunc("/status/{id}", processingService.StatusHandler).Methods("GET")
 
+	// Configurar CORS
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"*"},
+		AllowCredentials: true,
+	})
+
+	// Aplicar CORS middleware
+	handler := c.Handler(r)
+
 	// Configurar servidor
 	port := getEnv("PORT", "8080")
 	log.Printf("Processing Service iniciado na porta %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	log.Fatal(http.ListenAndServe(":"+port, handler))
 }

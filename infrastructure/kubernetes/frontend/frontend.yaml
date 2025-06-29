@@ -1,10 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: frontend-deployment
   namespace: fiapx
   labels:
     app: frontend
+    version: v1
 spec:
   replicas: 2
   selector:
@@ -14,13 +15,15 @@ spec:
     metadata:
       labels:
         app: frontend
+        version: v1
     spec:
       containers:
       - name: frontend
-        image: hmoraes/fiapx-frontend:latest
+        image: hmoraes/fiapx-frontend:v2.4
         imagePullPolicy: Always
         ports:
         - containerPort: 80
+          protocol: TCP
         resources:
           requests:
             memory: "64Mi"
@@ -30,16 +33,26 @@ spec:
             cpu: "100m"
         livenessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 80
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 80
           initialDelaySeconds: 5
           periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        env:
+        - name: NGINX_HOST
+          value: "localhost"
+        - name: NGINX_PORT
+          value: "80"
+      restartPolicy: Always
 
 ---
 apiVersion: v1
@@ -50,12 +63,30 @@ metadata:
   labels:
     app: frontend
 spec:
-  type: NodePort
+  selector:
+    app: frontend
   ports:
-  - port: 80
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service-external
+  namespace: fiapx
+  labels:
+    app: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+  - name: http
+    port: 80
     targetPort: 80
     nodePort: 30080
     protocol: TCP
-    name: http
-  selector:
-    app: frontend
+  type: NodePort

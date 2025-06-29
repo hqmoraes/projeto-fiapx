@@ -15,6 +15,8 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/streadway/amqp"
+	"github.com/rs/cors"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type UploadService struct {
@@ -143,13 +145,22 @@ func (us *UploadService) UploadVideoHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Extrair user_id do token JWT
+	authHeader := r.Header.Get("Authorization")
+	userID, err := getUserIDFromToken(authHeader)
+	if err != nil {
+		log.Printf("Erro ao extrair user_id do token: %v", err)
+		http.Error(w, "Token de autenticação inválido", http.StatusUnauthorized)
+		return
+	}
+
 	// Enviar mensagem para fila de processamento
 	message := ProcessingMessage{
 		VideoID:    videoID,
 		Filename:   header.Filename,
 		Bucket:     "video-uploads",
 		ObjectName: objectName,
-		UserID:     r.Header.Get("X-User-ID"), // Obtido do auth middleware
+		UserID:     userID,
 	}
 
 	messageBytes, err := json.Marshal(message)
@@ -218,6 +229,34 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
+// Extrair user ID do JWT token
+func getUserIDFromToken(tokenString string) (string, error) {
+	if tokenString == "" {
+		return "", fmt.Errorf("token vazio")
+	}
+	
+	// Remover "Bearer " se presente
+	if strings.HasPrefix(tokenString, "Bearer ") {
+		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+	}
+	
+	// Parse do token (sem validação da assinatura para simplicidade)
+	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		return "", fmt.Errorf("erro ao fazer parse do token: %v", err)
+	}
+	
+	// Extrair claims
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		if userID, ok := claims["user_id"].(float64); ok {
+			return fmt.Sprintf("%.0f", userID), nil // Converter float64 para string
+		}
+		return "", fmt.Errorf("user_id não encontrado no token")
+	}
+	
+	return "", fmt.Errorf("claims inválidas")
+}
+
 var ctx = context.Background()
 
 func main() {
@@ -234,8 +273,19 @@ func main() {
 	r.HandleFunc("/upload", uploadService.UploadVideoHandler).Methods("POST")
 	r.HandleFunc("/health", uploadService.HealthHandler).Methods("GET")
 
+	// Configurar CORS
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"*"},
+		AllowCredentials: true,
+	})
+
+	// Aplicar CORS middleware
+	handler := c.Handler(r)
+
 	// Configurar servidor
 	port := getEnv("PORT", "8080")
 	log.Printf("Upload Service iniciado na porta %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	log.Fatal(http.ListenAndServe(":"+port, handler))
 }

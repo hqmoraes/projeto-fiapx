@@ -8,9 +8,14 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"strings"
+	"regexp"
+	"math/rand"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/go-chi/jwtauth/v5"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
@@ -95,6 +100,16 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
+	// Configurar CORS
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"}, // Em produção, especificar domínios específicos
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+	}))
+
 	// Rotas públicas
 	r.Group(func(r chi.Router) {
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -138,6 +153,9 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Gerar username válido a partir do nome fornecido
+	generatedUsername := generateValidUsername(req.Username, req.Email)
+
 	// Verificar se o email já existe
 	var exists bool
 	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)", req.Email).Scan(&exists)
@@ -162,7 +180,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	var userID int
 	err = db.QueryRow(
 		"INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id",
-		req.Username, req.Email, string(hashedPassword),
+		generatedUsername, req.Email, string(hashedPassword),
 	).Scan(&userID)
 
 	if err != nil {
@@ -173,7 +191,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	// Gerar JWT
 	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{
 		"user_id":  userID,
-		"username": req.Username,
+		"username": generatedUsername,
 		"email":    req.Email,
 		"exp":      time.Now().Add(24 * time.Hour).Unix(),
 	})
@@ -181,7 +199,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	// Retornar resposta
 	user := User{
 		ID:       userID,
-		Username: req.Username,
+		Username: generatedUsername,
 		Email:    req.Email,
 	}
 
@@ -282,4 +300,36 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+// generateValidUsername gera um username válido a partir do nome fornecido
+func generateValidUsername(name, email string) string {
+	// Remover acentos e caracteres especiais, converter para minúsculas
+	name = strings.ToLower(name)
+	
+	// Substituir espaços por underscores
+	name = strings.ReplaceAll(name, " ", "_")
+	
+	// Remover caracteres especiais (manter apenas letras, números e underscores)
+	reg := regexp.MustCompile(`[^a-z0-9_]`)
+	username := reg.ReplaceAllString(name, "")
+	
+	// Se o username ficou vazio, usar parte do email
+	if username == "" {
+		emailParts := strings.Split(email, "@")
+		if len(emailParts) > 0 {
+			username = emailParts[0]
+		}
+	}
+	
+	// Limitar tamanho máximo
+	if len(username) > 20 {
+		username = username[:20]
+	}
+	
+	// Adicionar número aleatório para evitar duplicatas
+	randomNum := rand.Intn(1000)
+	username = username + strconv.Itoa(randomNum)
+	
+	return username
 }

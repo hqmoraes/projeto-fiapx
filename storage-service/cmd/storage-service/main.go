@@ -8,12 +8,57 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"strings"
+	"sync"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/streadway/amqp"
+	"github.com/rs/cors"
+	"github.com/golang-jwt/jwt/v5"
 )
+
+// Estrutura para armazenar vídeos em memória (simulando banco de dados)
+type VideoData struct {
+	VideoID     string    `json:"video_id"`
+	Title       string    `json:"title"`
+	Status      string    `json:"status"`
+	UploadedAt  time.Time `json:"uploaded_at"`
+	Resolutions []string  `json:"resolutions"`
+	UserID      int       `json:"user_id"`
+}
+
+// Storage em memória para simular banco de dados
+var (
+	videosStore = make(map[string]*VideoData)
+	storeMutex  = sync.RWMutex{}
+)
+
+// Inicializar dados de exemplo
+func initSampleData() {
+	storeMutex.Lock()
+	defer storeMutex.Unlock()
+	
+	videosStore["video_1234567890"] = &VideoData{
+		VideoID:     "video_1234567890",
+		Title:       "Vídeo de exemplo 1",
+		Status:      "completed",
+		UploadedAt:  time.Date(2025, 6, 26, 14, 0, 0, 0, time.UTC),
+		Resolutions: []string{"480p", "720p", "1080p"},
+		UserID:      7,
+	}
+	
+	videosStore["video_0987654321"] = &VideoData{
+		VideoID:     "video_0987654321",
+		Title:       "Vídeo de exemplo 2",
+		Status:      "processing",
+		UploadedAt:  time.Date(2025, 6, 26, 15, 0, 0, 0, time.UTC),
+		Resolutions: []string{"480p"},
+		UserID:      7,
+	}
+}
 
 type StorageService struct {
 	MinioClient *minio.Client
@@ -27,6 +72,7 @@ type ProcessingResult struct {
 	ProcessedAt   time.Time              `json:"processed_at"`
 	Resolutions   map[string]string      `json:"resolutions"`
 	Metadata      map[string]interface{} `json:"metadata"`
+	UserID        string                 `json:"user_id"`
 	Error         string                 `json:"error,omitempty"`
 }
 
@@ -119,6 +165,32 @@ func (ss *StorageService) StartStorageWorker() {
 }
 
 func (ss *StorageService) storeVideoMetadata(result ProcessingResult) error {
+	// Converter UserID de string para int
+	userIDInt := 0
+	if result.UserID != "" {
+		if id, err := strconv.Atoi(result.UserID); err == nil {
+			userIDInt = id
+		}
+	}
+	
+	// Converter resolutions map para slice
+	var resolutions []string
+	for resolution := range result.Resolutions {
+		resolutions = append(resolutions, resolution)
+	}
+	
+	// Criar entrada no videosStore
+	storeMutex.Lock()
+	videosStore[result.VideoID] = &VideoData{
+		VideoID:     result.VideoID,
+		Title:       fmt.Sprintf("Video %s", result.VideoID),
+		Status:      result.Status,
+		UploadedAt:  result.ProcessedAt,
+		Resolutions: resolutions,
+		UserID:      userIDInt,
+	}
+	storeMutex.Unlock()
+	
 	// Em produção, seria armazenado em banco de dados
 	metadata := VideoMetadata{
 		VideoID:     result.VideoID,
@@ -129,8 +201,9 @@ func (ss *StorageService) storeVideoMetadata(result ProcessingResult) error {
 		UpdatedAt:   time.Now(),
 	}
 
-	// Simular armazenamento
+	// Log da metadata armazenada
 	log.Printf("Metadata armazenada: %+v", metadata)
+	log.Printf("VideoData salva no storage para UserID %d: %s", userIDInt, result.VideoID)
 	return nil
 }
 
@@ -171,34 +244,35 @@ func (ss *StorageService) GetVideoHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (ss *StorageService) ListVideosHandler(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID obrigatório", http.StatusBadRequest)
+	// Extrair user ID do JWT token
+	authHeader := r.Header.Get("Authorization")
+	userID, err := getUserIDFromToken(authHeader)
+	if err != nil {
+		http.Error(w, "Token de autenticação inválido", http.StatusUnauthorized)
 		return
 	}
 
-	// Em produção, consultaria banco de dados
-	videos := []map[string]interface{}{
-		{
-			"video_id":    "video_1234567890",
-			"title":       "Vídeo de exemplo 1",
-			"status":      "completed",
-			"uploaded_at": "2025-06-26T14:00:00Z",
-			"resolutions": []string{"480p", "720p", "1080p"},
-		},
-		{
-			"video_id":    "video_0987654321",
-			"title":       "Vídeo de exemplo 2", 
-			"status":      "processing",
-			"uploaded_at": "2025-06-26T15:00:00Z",
-			"resolutions": []string{"480p"},
-		},
+	// Buscar vídeos do usuário no storage em memória
+	storeMutex.RLock()
+	var userVideos []map[string]interface{}
+	for _, video := range videosStore {
+		if video.UserID == userID {
+			userVideos = append(userVideos, map[string]interface{}{
+				"video_id":    video.VideoID,
+				"title":       video.Title,
+				"status":      video.Status,
+				"uploaded_at": video.UploadedAt.Format(time.RFC3339),
+				"resolutions": video.Resolutions,
+				"user_id":     video.UserID,
+			})
+		}
 	}
+	storeMutex.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"videos": videos,
-		"total":  len(videos),
+		"videos": userVideos,
+		"total":  len(userVideos),
 	})
 }
 
@@ -211,6 +285,58 @@ func (ss *StorageService) HealthHandler(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// Handler para estatísticas
+func (s *StorageService) StatsHandler(w http.ResponseWriter, r *http.Request) {
+	// Extrair user ID do JWT token
+	authHeader := r.Header.Get("Authorization")
+	userID, err := getUserIDFromToken(authHeader)
+	if err != nil {
+		http.Error(w, "Token de autenticação inválido", http.StatusUnauthorized)
+		return
+	}
+	
+	// Simular estatísticas (seria obtido do banco de dados na prática, filtrado por userID)
+	stats := map[string]interface{}{
+		"total_videos": 0,
+		"total_size": 0,
+		"processing": 0,
+		"completed": 0,
+		"failed": 0,
+		"user_id": userID,
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+// Extrair user ID do JWT token
+func getUserIDFromToken(tokenString string) (int, error) {
+	if tokenString == "" {
+		return 0, fmt.Errorf("token vazio")
+	}
+	
+	// Remover "Bearer " se presente
+	if strings.HasPrefix(tokenString, "Bearer ") {
+		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+	}
+	
+	// Parse do token (sem validação da assinatura para simplicidade)
+	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		return 0, fmt.Errorf("erro ao fazer parse do token: %v", err)
+	}
+	
+	// Extrair claims
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		if userID, ok := claims["user_id"].(float64); ok {
+			return int(userID), nil
+		}
+		return 0, fmt.Errorf("user_id não encontrado no token")
+	}
+	
+	return 0, fmt.Errorf("claims inválidas")
+}
+
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -218,9 +344,64 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
+func (ss *StorageService) DeleteVideoHandler(w http.ResponseWriter, r *http.Request) {
+	// Extrair user ID do JWT token
+	authHeader := r.Header.Get("Authorization")
+	userID, err := getUserIDFromToken(authHeader)
+	if err != nil {
+		http.Error(w, "Token de autenticação inválido", http.StatusUnauthorized)
+		return
+	}
+
+	// Extrair ID do vídeo da URL
+	vars := mux.Vars(r)
+	videoID := vars["id"]
+	
+	if videoID == "" {
+		http.Error(w, "ID do vídeo é obrigatório", http.StatusBadRequest)
+		return
+	}
+
+	// Verificar se o vídeo existe e pertence ao usuário
+	storeMutex.Lock()
+	video, exists := videosStore[videoID]
+	if !exists {
+		storeMutex.Unlock()
+		http.Error(w, "Vídeo não encontrado", http.StatusNotFound)
+		return
+	}
+	
+	if video.UserID != userID {
+		storeMutex.Unlock()
+		http.Error(w, "Acesso negado", http.StatusForbidden)
+		return
+	}
+	
+	// Deletar o vídeo do storage em memória
+	delete(videosStore, videoID)
+	storeMutex.Unlock()
+	
+	log.Printf("Vídeo %s deletado com sucesso para usuário %d", videoID, userID)
+	
+	// Aqui faria:
+	// 1. Verificar se o vídeo existe no banco
+	// 2. Verificar se pertence ao usuário
+	// 3. Deletar arquivos do MinIO
+	// 4. Deletar registro do banco
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Vídeo deletado com sucesso",
+		"video_id": videoID,
+	})
+}
+
 var ctx = context.Background()
 
 func main() {
+	// Inicializar dados de exemplo
+	initSampleData()
+	
 	// Inicializar serviço
 	storageService, err := NewStorageService()
 	if err != nil {
@@ -236,10 +417,23 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/health", storageService.HealthHandler).Methods("GET")
 	r.HandleFunc("/videos/{id}", storageService.GetVideoHandler).Methods("GET")
+	r.HandleFunc("/videos/{id}", storageService.DeleteVideoHandler).Methods("DELETE")
 	r.HandleFunc("/videos", storageService.ListVideosHandler).Methods("GET")
+	r.HandleFunc("/stats", storageService.StatsHandler).Methods("GET")
+
+	// Configurar CORS
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"*"},
+		AllowCredentials: true,
+	})
+
+	// Aplicar CORS middleware
+	handler := c.Handler(r)
 
 	// Configurar servidor
 	port := getEnv("PORT", "8080")
 	log.Printf("Storage Service iniciado na porta %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	log.Fatal(http.ListenAndServe(":"+port, handler))
 }
