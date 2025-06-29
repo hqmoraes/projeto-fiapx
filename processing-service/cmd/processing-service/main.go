@@ -1,12 +1,18 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -34,7 +40,9 @@ type ProcessingResult struct {
 	VideoID       string                 `json:"video_id"`
 	Status        string                 `json:"status"`
 	ProcessedAt   time.Time              `json:"processed_at"`
-	Resolutions   map[string]string      `json:"resolutions"`
+	FrameCount    int                    `json:"frame_count"`
+	ZipSize       int64                  `json:"zip_size"`
+	ZipObjectName string                 `json:"zip_object_name"`
 	Metadata      map[string]interface{} `json:"metadata"`
 	UserID        string                 `json:"user_id"`
 	Error         string                 `json:"error,omitempty"`
