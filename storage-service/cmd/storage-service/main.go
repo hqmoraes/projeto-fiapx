@@ -24,12 +24,14 @@ import (
 
 // Estrutura para armazenar vídeos em memória (simulando banco de dados)
 type VideoData struct {
-	VideoID     string    `json:"video_id"`
-	Title       string    `json:"title"`
-	Status      string    `json:"status"`
-	UploadedAt  time.Time `json:"uploaded_at"`
-	Resolutions []string  `json:"resolutions"`
-	UserID      int       `json:"user_id"`
+	VideoID       string    `json:"video_id"`
+	Title         string    `json:"title"`
+	Status        string    `json:"status"`
+	UploadedAt    time.Time `json:"uploaded_at"`
+	FrameCount    int       `json:"frame_count"`
+	ZipSize       int64     `json:"zip_size"`
+	ZipObjectName string    `json:"zip_object_name"`
+	UserID        int       `json:"user_id"`
 }
 
 // Storage em memória para simular banco de dados
