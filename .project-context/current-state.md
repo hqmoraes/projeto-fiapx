@@ -17,8 +17,8 @@
 - **auth-service**: v1.2 (usernames válidos)
 - **upload-service**: v1.2 (extração JWT user_id)
 - **processing-service**: v1.2 (propagação UserID)
-- **storage-service**: v1.9 (storage + download + stats)
-- **frontend**: v2.4 (tipos MIME expandidos)
+- **storage-service**: v2.0 (storage + download ZIP real + stats)
+- **frontend**: v2.5 (estatísticas corrigidas + tipos MIME expandidos)
 
 ## Funcionalidades Implementadas ✅
 ### Autenticação

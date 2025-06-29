@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"strconv"
+	"archive/zip"
+	"bytes"
 
 	"github.com/gorilla/mux"
 	"github.com/minio/minio-go/v7"
@@ -438,17 +440,65 @@ func (ss *StorageService) DownloadVideoHandler(w http.ResponseWriter, r *http.Re
 	}
 	storeMutex.RUnlock()
 
-	// Simular criação de ZIP com frames (em produção, criaria ZIP real)
-	zipContent := fmt.Sprintf("# Video Frames Package\nVideo ID: %s\nUser ID: %d\nResolutions: %v\nStatus: %s\n\n# This would contain actual video frames in production", 
-		video.VideoID, video.UserID, video.Resolutions, video.Status)
+	// Criar ZIP em memória
+	var buf bytes.Buffer
+	zipWriter := zip.NewWriter(&buf)
+
+	// Adicionar arquivo info.txt
+	infoContent := fmt.Sprintf(`Video Processing Results
+========================
+Video ID: %s
+User ID: %d
+Status: %s
+Resolutions: %v
+Processed At: %s
+
+Este é um arquivo simulado.
+Em produção, conteria os frames reais do vídeo processado.
+`, video.VideoID, video.UserID, video.Status, video.Resolutions, video.UploadedAt.Format(time.RFC3339))
+
+	infoFile, err := zipWriter.Create("info.txt")
+	if err != nil {
+		http.Error(w, "Erro ao criar ZIP", http.StatusInternalServerError)
+		return
+	}
+	_, err = infoFile.Write([]byte(infoContent))
+	if err != nil {
+		http.Error(w, "Erro ao criar ZIP", http.StatusInternalServerError)
+		return
+	}
+
+	// Adicionar arquivos simulados para cada resolução
+	for _, resolution := range video.Resolutions {
+		fileName := fmt.Sprintf("frames_%s.txt", resolution)
+		frameContent := fmt.Sprintf("Frames simulados para resolução %s\nVideo: %s\nFrame 001: [dados simulados]\nFrame 002: [dados simulados]\nFrame 003: [dados simulados]\n", resolution, video.VideoID)
+		
+		frameFile, err := zipWriter.Create(fileName)
+		if err != nil {
+			http.Error(w, "Erro ao criar ZIP", http.StatusInternalServerError)
+			return
+		}
+		_, err = frameFile.Write([]byte(frameContent))
+		if err != nil {
+			http.Error(w, "Erro ao criar ZIP", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Fechar o zip writer
+	err = zipWriter.Close()
+	if err != nil {
+		http.Error(w, "Erro ao finalizar ZIP", http.StatusInternalServerError)
+		return
+	}
 
 	// Configurar headers para download
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"video-%s-frames.zip\"", videoID))
-	w.Header().Set("Content-Length", strconv.Itoa(len(zipContent)))
+	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
 
-	// Enviar conteúdo simulado
-	w.Write([]byte(zipContent))
+	// Enviar ZIP
+	w.Write(buf.Bytes())
 }
 
 var ctx = context.Background()
