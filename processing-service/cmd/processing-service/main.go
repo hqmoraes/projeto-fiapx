@@ -167,29 +167,208 @@ func (ps *ProcessingService) processVideo(msg ProcessingMessage) ProcessingResul
 	result := ProcessingResult{
 		VideoID:     msg.VideoID,
 		ProcessedAt: time.Now(),
-		Resolutions: make(map[string]string),
-		Metadata:    make(map[string]interface{}),
 		UserID:      msg.UserID,
+		Metadata:    make(map[string]interface{}),
 	}
 
-	// Simular processamento (em produção, aqui seria FFmpeg)
-	time.Sleep(2 * time.Second)
+	log.Printf("Iniciando processamento de frames para vídeo: %s", msg.VideoID)
 
-	// Simular múltiplas resoluções
-	resolutions := []string{"480p", "720p", "1080p"}
-	for _, res := range resolutions {
-		// Em produção, aqui processaríamos com FFmpeg
-		outputKey := fmt.Sprintf("%s_%s.mp4", msg.VideoID, res)
-		result.Resolutions[res] = outputKey
+	// Criar diretório temporário para o processamento
+	tempDir := filepath.Join("/tmp", fmt.Sprintf("video_processing_%s", msg.VideoID))
+	os.MkdirAll(tempDir, 0755)
+	defer os.RemoveAll(tempDir)
+
+	// Baixar vídeo do MinIO
+	videoPath := filepath.Join(tempDir, msg.Filename)
+	err := ps.downloadVideoFromMinio(msg.Bucket, msg.ObjectName, videoPath)
+	if err != nil {
+		log.Printf("Erro ao baixar vídeo do MinIO: %v", err)
+		result.Status = "error"
+		result.Error = fmt.Sprintf("Erro ao baixar vídeo: %v", err)
+		return result
 	}
 
-	// Simular metadata
-	result.Metadata["duration"] = "120.5"
-	result.Metadata["format"] = "mp4"
-	result.Metadata["size"] = "1048576"
+	// Extrair frames
+	framesDir := filepath.Join(tempDir, "frames")
+	os.MkdirAll(framesDir, 0755)
+	
+	frameCount, err := ps.extractFrames(videoPath, framesDir)
+	if err != nil {
+		log.Printf("Erro ao extrair frames: %v", err)
+		result.Status = "error"
+		result.Error = fmt.Sprintf("Erro ao extrair frames: %v", err)
+		return result
+	}
+
+	if frameCount == 0 {
+		log.Printf("Nenhum frame foi extraído do vídeo")
+		result.Status = "error"
+		result.Error = "Nenhum frame foi extraído do vídeo"
+		return result
+	}
+
+	log.Printf("Extraídos %d frames do vídeo %s", frameCount, msg.VideoID)
+
+	// Criar ZIP com os frames
+	zipPath := filepath.Join(tempDir, fmt.Sprintf("frames_%s.zip", msg.VideoID))
+	err = ps.createZipFromFrames(framesDir, zipPath)
+	if err != nil {
+		log.Printf("Erro ao criar ZIP: %v", err)
+		result.Status = "error"
+		result.Error = fmt.Sprintf("Erro ao criar ZIP: %v", err)
+		return result
+	}
+
+	// Upload do ZIP para MinIO
+	zipObjectName := fmt.Sprintf("frames_%s.zip", msg.VideoID)
+	zipSize, err := ps.uploadZipToMinio(zipPath, zipObjectName)
+	if err != nil {
+		log.Printf("Erro ao fazer upload do ZIP: %v", err)
+		result.Status = "error"
+		result.Error = fmt.Sprintf("Erro ao fazer upload do ZIP: %v", err)
+		return result
+	}
+
+	log.Printf("ZIP criado e enviado com sucesso: %s (%d bytes)", zipObjectName, zipSize)
+
+	// Atualizar resultado
 	result.Status = "completed"
+	result.FrameCount = frameCount
+	result.ZipSize = zipSize
+	result.ZipObjectName = zipObjectName
+	result.Metadata["original_filename"] = msg.Filename
+	result.Metadata["frame_count"] = frameCount
+	result.Metadata["zip_size"] = zipSize
 
 	return result
+}
+
+func (ps *ProcessingService) downloadVideoFromMinio(bucket, objectName, localPath string) error {
+	ctx := context.Background()
+	
+	// Baixar objeto do MinIO
+	object, err := ps.MinioClient.GetObject(ctx, bucket, objectName, minio.GetObjectOptions{})
+	if err != nil {
+		return fmt.Errorf("erro ao obter objeto do MinIO: %v", err)
+	}
+	defer object.Close()
+
+	// Criar arquivo local
+	localFile, err := os.Create(localPath)
+	if err != nil {
+		return fmt.Errorf("erro ao criar arquivo local: %v", err)
+	}
+	defer localFile.Close()
+
+	// Copiar conteúdo
+	_, err = io.Copy(localFile, object)
+	if err != nil {
+		return fmt.Errorf("erro ao copiar conteúdo: %v", err)
+	}
+
+	return nil
+}
+
+func (ps *ProcessingService) extractFrames(videoPath, framesDir string) (int, error) {
+	// Usar ffmpeg para extrair frames (1 frame por segundo)
+	framePattern := filepath.Join(framesDir, "frame_%04d.png")
+	
+	cmd := exec.Command("ffmpeg",
+		"-i", videoPath,
+		"-vf", "fps=1", // 1 frame por segundo
+		"-y",           // sobrescrever arquivos existentes
+		framePattern,
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("erro no ffmpeg: %s\nOutput: %s", err.Error(), string(output))
+	}
+
+	// Contar frames extraídos
+	frames, err := filepath.Glob(filepath.Join(framesDir, "*.png"))
+	if err != nil {
+		return 0, fmt.Errorf("erro ao listar frames: %v", err)
+	}
+
+	return len(frames), nil
+}
+
+func (ps *ProcessingService) createZipFromFrames(framesDir, zipPath string) error {
+	// Listar todos os arquivos PNG
+	frames, err := filepath.Glob(filepath.Join(framesDir, "*.png"))
+	if err != nil {
+		return fmt.Errorf("erro ao listar frames: %v", err)
+	}
+
+	// Criar arquivo ZIP
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		return fmt.Errorf("erro ao criar arquivo ZIP: %v", err)
+	}
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	// Adicionar cada frame ao ZIP
+	for _, framePath := range frames {
+		err := ps.addFileToZip(zipWriter, framePath)
+		if err != nil {
+			return fmt.Errorf("erro ao adicionar frame ao ZIP: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (ps *ProcessingService) addFileToZip(zipWriter *zip.Writer, filePath string) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	header, err := zip.FileInfoHeader(info)
+	if err != nil {
+		return err
+	}
+
+	header.Name = filepath.Base(filePath)
+	header.Method = zip.Deflate
+
+	writer, err := zipWriter.CreateHeader(header)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(writer, file)
+	return err
+}
+
+func (ps *ProcessingService) uploadZipToMinio(zipPath, objectName string) (int64, error) {
+	ctx := context.Background()
+	
+	// Obter informações do arquivo
+	zipInfo, err := os.Stat(zipPath)
+	if err != nil {
+		return 0, fmt.Errorf("erro ao obter informações do ZIP: %v", err)
+	}
+
+	// Fazer upload do ZIP para o bucket video-processed
+	_, err = ps.MinioClient.FPutObject(ctx, "video-processed", objectName, zipPath, minio.PutObjectOptions{
+		ContentType: "application/zip",
+	})
+	if err != nil {
+		return 0, fmt.Errorf("erro ao fazer upload para MinIO: %v", err)
+	}
+
+	return zipInfo.Size(), nil
 }
 
 func (ps *ProcessingService) HealthHandler(w http.ResponseWriter, r *http.Request) {
