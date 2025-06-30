@@ -182,11 +182,17 @@ func (ss *StorageService) storeVideoMetadata(result ProcessingResult) error {
 		}
 	}
 	
+	// Extrair nome do arquivo original dos metadados
+	originalFilename := "Video sem nome"
+	if filename, ok := result.Metadata["original_filename"].(string); ok && filename != "" {
+		originalFilename = filename
+	}
+	
 	// Criar entrada no videosStore
 	storeMutex.Lock()
 	videosStore[result.VideoID] = &VideoData{
 		VideoID:       result.VideoID,
-		Title:         fmt.Sprintf("Video %s", result.VideoID),
+		Title:         originalFilename,
 		Status:        result.Status,
 		UploadedAt:    result.ProcessedAt,
 		FrameCount:    result.FrameCount,
@@ -273,6 +279,7 @@ func (ss *StorageService) ListVideosHandler(w http.ResponseWriter, r *http.Reque
 			userVideos = append(userVideos, map[string]interface{}{
 				"video_id":    video.VideoID,
 				"title":       video.Title,
+				"filename":    video.Title, // Adicionar filename para compatibilidade com frontend
 				"status":      video.Status,
 				"uploaded_at": video.UploadedAt.Format(time.RFC3339),
 				"frame_count": video.FrameCount,
