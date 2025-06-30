@@ -41,8 +41,8 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: processing-service
-        image: hmoraes/fiapx-processing-service:v2.1
-        imagePullPolicy: IfNotPresent
+        image: hmoraes/fiapx-processing-service:v2.2-queue
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         env:

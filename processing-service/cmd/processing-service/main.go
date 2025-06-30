@@ -46,6 +46,26 @@ type ProcessingResult struct {
 	Error         string                 `json:"error,omitempty"`
 }
 
+// Estruturas para APIs de fila
+type QueueStatus struct {
+	QueueLength     int                  `json:"queue_length"`
+	ProcessingCount int                  `json:"processing_count"`
+	VideosInQueue   []QueueVideoInfo     `json:"videos_in_queue"`
+}
+
+type QueueVideoInfo struct {
+	VideoID   string    `json:"video_id"`
+	Filename  string    `json:"filename"`
+	UserID    string    `json:"user_id"`
+	QueuedAt  time.Time `json:"queued_at"`
+	Position  int       `json:"position"`
+}
+
+type VideoQueuePosition struct {
+	Position          int `json:"position"`
+	EstimatedWaitTime int `json:"estimated_wait_time"` // em segundos
+}
+
 func NewProcessingService() (*ProcessingService, error) {
 	// Configurar MinIO
 	minioEndpoint := getEnv("MINIO_ENDPOINT", "minio:9000")
@@ -392,6 +412,78 @@ func (ps *ProcessingService) StatusHandler(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(status)
 }
 
+// Handler para obter status da fila
+func (ps *ProcessingService) QueueStatusHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	
+	// Obter informações da fila RabbitMQ
+	queueInfo, err := ps.RabbitCh.QueueInspect("video_processing")
+	if err != nil {
+		log.Printf("Erro ao inspecionar fila: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Erro ao obter status da fila"})
+		return
+	}
+
+	// Contar pods/workers ativos (simulação baseada na fila)
+	processingCount := 0
+	if queueInfo.Messages > 0 {
+		// Estimar workers ativos baseado na carga
+		processingCount = min(queueInfo.Messages, 5) // Máximo 5 pods
+	}
+
+	status := QueueStatus{
+		QueueLength:     queueInfo.Messages,
+		ProcessingCount: processingCount,
+		VideosInQueue:   []QueueVideoInfo{}, // Em produção, obteria de BD
+	}
+
+	json.NewEncoder(w).Encode(status)
+}
+
+// Handler para obter posição de um vídeo na fila
+func (ps *ProcessingService) VideoQueuePositionHandler(w http.ResponseWriter, r *http.Request) {
+	videoID := mux.Vars(r)["id"]
+	w.Header().Set("Content-Type", "application/json")
+	
+	// Log para debug
+	log.Printf("Consultando posição na fila para vídeo: %s", videoID)
+	
+	// Em produção, consultaria banco de dados para posição real
+	// Por agora, simulamos baseado na fila
+	queueInfo, err := ps.RabbitCh.QueueInspect("video_processing")
+	if err != nil {
+		log.Printf("Erro ao inspecionar fila: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Erro ao obter posição na fila"})
+		return
+	}
+
+	// Simular posição (em produção seria obtida do BD)
+	position := 1
+	if queueInfo.Messages > 1 {
+		position = queueInfo.Messages / 2 // Estimativa
+	}
+
+	// Estimar tempo (assumindo 90 segundos por vídeo)
+	estimatedWaitTime := position * 90
+
+	result := VideoQueuePosition{
+		Position:          position,
+		EstimatedWaitTime: estimatedWaitTime,
+	}
+
+	json.NewEncoder(w).Encode(result)
+}
+
+// Função auxiliar para min
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -417,6 +509,8 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/health", processingService.HealthHandler).Methods("GET")
 	r.HandleFunc("/status/{id}", processingService.StatusHandler).Methods("GET")
+	r.HandleFunc("/queue/status", processingService.QueueStatusHandler).Methods("GET")
+	r.HandleFunc("/queue/position/{id}", processingService.VideoQueuePositionHandler).Methods("GET")
 
 	// Configurar CORS
 	c := cors.New(cors.Options{
