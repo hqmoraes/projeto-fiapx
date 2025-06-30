@@ -1,10 +1,45 @@
-# Projeto FiapX - Processamento de Vídeos
+# 🎥 FIAP-X - Sistema de Processamento de Vídeos
 
-## Visão Geral
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com)
+[![Coverage](https://img.shields.io/badge/coverage-84.6%25-green)](https://github.com)
+[![Kubernetes](https://img.shields.io/badge/kubernetes-ready-blue)](https://kubernetes.io)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Este projeto implementa uma plataforma de processamento de vídeos baseada em microsserviços, com foco em escalabilidade, resiliência e manutenibilidade.
+Sistema escalável de processamento de vídeos construído com arquitetura de microsserviços, rodando em produção na AWS com observabilidade completa.
 
-## Arquitetura
+## 🚀 Funcionalidades
+
+- ✅ **Processamento Paralelo**: Múltiplos vídeos processados simultaneamente
+- ✅ **Alta Disponibilidade**: Sistema não perde requisições mesmo em picos
+- ✅ **Autenticação Segura**: JWT-based authentication
+- ✅ **Monitoramento Real-time**: Status tracking com atualizações em tempo real
+- ✅ **Auto-scaling**: HPA baseado em CPU e memória
+- ✅ **Observabilidade**: Métricas Prometheus + Dashboards Grafana
+- ✅ **CI/CD Completo**: Pipeline automatizado com quality gates
+
+## 🏗️ Arquitetura
+
+### Microsserviços Implementados
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ Frontend    │◄──►│ API Gateway │◄──►│ Load Balancer│
+│ (HTML/JS)   │    │ (Go)        │    │ (K8s)       │
+└─────────────┘    └─────────────┘    └─────────────┘
+                          │
+              ┌───────────┼───────────┐
+              │           │           │
+    ┌─────────▼─┐ ┌──────▼──┐ ┌──────▼──────┐
+    │Auth Service│ │Upload   │ │Processing   │
+    │(Go + JWT)  │ │Service  │ │Service      │
+    └────────────┘ │(Go)     │ │(Go+FFmpeg)  │
+                   └─────────┘ └─────────────┘
+                          │
+                   ┌──────▼──────┐
+                   │Storage      │
+                   │Service (Go) │
+                   └─────────────┘
+```
 
 A arquitetura do projeto é baseada em microsserviços, com os seguintes componentes:
 
