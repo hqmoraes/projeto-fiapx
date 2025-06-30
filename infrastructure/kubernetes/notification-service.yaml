@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: fiapx
+  labels:
+    app: notification-service
+    component: notification
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+        component: notification
+    spec:
+      containers:
+      - name: notification-service
+        image: notification-service:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: RABBITMQ_URL
+          value: "amqp://guest:guest@rabbitmq-service:5672/"
+        - name: SMTP_HOST
+          value: "email-smtp.us-east-1.amazonaws.com"
+        - name: SMTP_PORT
+          value: "587"
+        - name: SMTP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: ses-email-secrets
+              key: ses-smtp-username
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ses-email-secrets
+              key: ses-smtp-password
+        - name: FROM_EMAIL
+          value: "noreply@fiapx.wecando.click"
+        - name: FROM_NAME
+          value: "FIAP-X Video Processing Platform"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+            - ps
+            - aux
+            - |
+            - grep
+            - notification-service
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - ps
+            - aux
+            - |
+            - grep
+            - notification-service
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: fiapx
+  labels:
+    app: notification-service
+spec:
+  selector:
+    app: notification-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  type: ClusterIP
+---
+# NOTA: O secret 'ses-email-secrets' deve ser criado usando o script:
+# scripts/setup-ses-notifications.sh
+# 
+# Este secret contém as credenciais do Amazon SES e nunca deve
+# ser commitado no repositório por motivos de segurança.

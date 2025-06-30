@@ -1,0 +1,218 @@
+#!/bin/bash
+
+# Email Service Configuration Script for FIAP-X
+# Sets up email notifications for video processing events
+
+set -e
+
+echo "📧 FIAP-X EMAIL NOTIFICATION SETUP"
+echo "=================================="
+
+# Check if kubectl is available
+if ! command -v kubectl &> /dev/null; then
+    echo "❌ kubectl not found. Please install kubectl first."
+    exit 1
+fi
+
+# Configuration
+NAMESPACE="fiapx"
+
+echo "🔧 Configuring email service..."
+
+# Get email credentials from user
+echo ""
+echo "Please provide your email configuration:"
+echo "Note: For Gmail, you need to create an App Password"
+echo "Go to: https://myaccount.google.com/apppasswords"
+echo ""
+
+read -p "SMTP Username (email): " AKIA2CEKWSP6M2BNI4BU
+read -s -p "SMTP Password (app password): " BO1zyE4MyRQiyqzpm/AJHYDmQ21qjLln0djML/HUWY63
+echo ""
+read -p "From Email (default: noreply@fiapx.wecando.click): " FROM_EMAIL
+FROM_EMAIL=${FROM_EMAIL:-"noreply@fiapx.wecando.click"}
+
+read -p "From Name (default: FIAP-X Platform): " FROM_NAME  
+FROM_NAME=${FROM_NAME:-"FIAP-X Platform"}
+
+# Encode credentials in base64
+SMTP_USERNAME_B64=$(echo -n "$SMTP_USERNAME" | base64 -w 0)
+SMTP_PASSWORD_B64=$(echo -n "$SMTP_PASSWORD" | base64 -w 0)
+
+echo ""
+echo "✅ Credentials encoded successfully"
+
+# Create or update the secret
+echo "🔐 Creating email secret..."
+
+kubectl create secret generic email-secrets \
+    --from-literal=smtp-username="$SMTP_USERNAME" \
+    --from-literal=smtp-password="$SMTP_PASSWORD" \
+    --namespace="$NAMESPACE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+echo "✅ Email secret created/updated"
+
+# Update the Kubernetes deployment with correct secret
+cat > /tmp/notification-service-updated.yaml << EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: fiapx
+  labels:
+    app: notification-service
+    component: notification
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+        component: notification
+    spec:
+      containers:
+      - name: notification-service
+        image: notification-service:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: RABBITMQ_URL
+          value: "amqp://guest:guest@rabbitmq-service:5672/"
+        - name: SMTP_HOST
+          value: "email-smtp.us-east-1.amazonaws.com"
+        - name: SMTP_PORT
+          value: "587"
+        - name: SMTP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: email-secrets
+              key: AKIA2CEKWSP6M2BNI4BU
+        - name: BO1zyE4MyRQiyqzpm/AJHYDmQ21qjLln0djML/HUWY63
+          valueFrom:
+            secretKeyRef:
+              name: email-secrets
+              key: smtp-password
+        - name: FROM_EMAIL
+          value: "$FROM_EMAIL"
+        - name: FROM_NAME
+          value: "$FROM_NAME"
+        - name: DEFAULT_USER_EMAIL
+          value: "$SMTP_USERNAME"
+        - name: DEFAULT_USER_NAME
+          value: "FIAP-X User"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+            - ps
+            - aux
+            - |
+            - grep
+            - notification-service
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - ps
+            - aux
+            - |
+            - grep
+            - notification-service
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: fiapx
+  labels:
+    app: notification-service
+spec:
+  selector:
+    app: notification-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  type: ClusterIP
+EOF
+
+# Build and deploy notification service
+echo "🏗️ Building notification service..."
+
+# Build Docker image
+cd notification-service
+docker build -t notification-service:latest .
+cd ..
+
+echo "✅ Docker image built successfully"
+
+# Apply the updated deployment
+echo "🚀 Deploying notification service..."
+kubectl apply -f /tmp/notification-service-updated.yaml
+
+echo "✅ Notification service deployed"
+
+# Update processing service to include email environment variables
+echo "🔧 Updating processing service with email config..."
+
+kubectl patch deployment processing-service -n fiapx -p '{"spec":{"template":{"spec":{"containers":[{"name":"processing-service","env":[{"name":"DEFAULT_USER_EMAIL","value":"'$SMTP_USERNAME'"},{"name":"DEFAULT_USER_NAME","value":"FIAP-X User"}]}]}}}}'
+
+echo "✅ Processing service updated"
+
+# Wait for deployments to be ready
+echo "⏳ Waiting for deployments to be ready..."
+
+kubectl wait --for=condition=available --timeout=300s deployment/notification-service -n fiapx
+kubectl wait --for=condition=available --timeout=300s deployment/processing-service -n fiapx
+
+echo "✅ All deployments are ready"
+
+# Test email configuration
+echo "📧 Testing email configuration..."
+
+# Send test email
+kubectl exec -it deployment/notification-service -n fiapx -- /bin/sh -c "
+    SEND_TEST_EMAIL=true \
+    TEST_EMAIL=$SMTP_USERNAME \
+    ./notification-service
+" || echo "⚠️ Test email may have failed - check logs"
+
+echo ""
+echo "🎉 EMAIL NOTIFICATION SETUP COMPLETE!"
+echo "====================================="
+echo ""
+echo "📋 Configuration Summary:"
+echo "  • SMTP Server: email-smtp.us-east-1.amazonaws.com:587"
+echo "  • From Email: $FROM_EMAIL"
+echo "  • Test Email: $SMTP_USERNAME"
+echo "  • Namespace: $NAMESPACE"
+echo ""
+echo "📝 What happens next:"
+echo "  1. Video processing errors will send email notifications"
+echo "  2. Successful processing will also send notifications"
+echo "  3. Users will receive updates on processing status"
+echo ""
+echo "📊 Monitor notifications:"
+echo "  kubectl logs -f deployment/notification-service -n fiapx"
+echo ""
+echo "🧪 Test notification manually:"
+echo '  kubectl exec -it deployment/notification-service -n fiapx -- /bin/sh -c "SEND_TEST_EMAIL=true TEST_EMAIL=your@email.com ./notification-service"'
+
+# Clean up
+rm -f /tmp/notification-service-updated.yaml
+
+echo ""
+echo "✅ Setup completed successfully!"

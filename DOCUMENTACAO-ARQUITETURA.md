@@ -13,8 +13,8 @@ O projeto FIAP-X foi desenvolvido como um sistema escalável de processamento de
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   API Gateway   │    │  Load Balancer  │
-│   (React/JS)    │◄──►│   (Go)         │◄──►│   (Kubernetes)  │
+│   Frontend      │    │   CloudFront    │    │  Load Balancer  │
+│   (React/JS)    │◄──►│   + SSL/HTTPS   │◄──►│   (Kubernetes)  │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                               │
                               ▼
@@ -29,7 +29,7 @@ O projeto FIAP-X foi desenvolvido como um sistema escalável de processamento de
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    INFRAESTRUTURA                               │
+│               INFRAESTRUTURA + NOTIFICAÇÕES                     │
 ├─────────────┬─────────────┬─────────────┬─────────────────────┤
 │PostgreSQL   │Redis Cache  │RabbitMQ     │MinIO S3             │
 │- User Data  │- Sessions   │- Job Queue  │- Video Storage      │
@@ -38,11 +38,26 @@ O projeto FIAP-X foi desenvolvido como um sistema escalável de processamento de
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                  OBSERVABILIDADE                                │
+│              OBSERVABILIDADE + COMUNICAÇÃO                      │
 ├─────────────┬─────────────┬─────────────┬─────────────────────┤
-│Prometheus   │Grafana      │Kubernetes   │CI/CD Pipeline       │
-│- Métricas   │- Dashboards │- HPA        │- GitHub Actions     │
-│- Alertas    │- Monitoring │- Auto-Scale │- Automated Deploy   │
+│Prometheus   │Grafana      │Notification │CI/CD Pipeline       │
+│- Métricas   │- Dashboards │Service      │- GitHub Actions     │
+│- Alertas    │- Monitoring │- Email Send │- Automated Deploy   │
+└─────────────┴─────────────┴─────────────┴─────────────────────┘
+```
+├─────────────┬─────────────┬─────────────┬─────────────────────┤
+│PostgreSQL   │Redis Cache  │RabbitMQ     │MinIO S3             │
+│- User Data  │- Sessions   │- Job Queue  │- Video Storage      │
+│- Job Status │- Cache      │- Messaging  │- Frame Storage      │
+└─────────────┴─────────────┴─────────────┴─────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              OBSERVABILIDADE + COMUNICAÇÃO                      │
+├─────────────┬─────────────┬─────────────┬─────────────────────┤
+│Prometheus   │Grafana      │Notification │CI/CD Pipeline       │
+│- Métricas   │- Dashboards │Service      │- GitHub Actions     │
+│- Alertas    │- Monitoring │- Email Send │- Automated Deploy   │
 └─────────────┴─────────────┴─────────────┴─────────────────────┘
 ```
 
@@ -98,6 +113,15 @@ O projeto FIAP-X foi desenvolvido como um sistema escalável de processamento de
   - CORS handling
   - Request logging
 
+#### 📧 Notification Service
+- **Função:** Sistema de notificações por email
+- **Tecnologia:** Go + SMTP
+- **Recursos:**
+  - Notificações automáticas de status
+  - Templates HTML personalizados
+  - Integração com Gmail/SMTP
+  - Queue de notificações via RabbitMQ
+
 ### 2. INFRAESTRUTURA
 
 #### 🗄️ Banco de Dados
@@ -136,6 +160,28 @@ O projeto FIAP-X foi desenvolvido como um sistema escalável de processamento de
 - **Range:** 1-5 replicas do processing-service
 - **Metrics:** Monitoramento contínuo de recursos
 
+### 4. HTTPS E CDN
+
+#### 🔒 CloudFront + SSL
+- **CloudFront:** CDN global da AWS
+- **SSL Certificate:** Certificado TLS automático via ACM
+- **Custom Domain:** fiapx.wecando.click
+- **HTTPS Redirect:** Redirecionamento automático HTTP → HTTPS
+
+#### 🌐 Domínio Personalizado
+- **Domínio:** https://fiapx.wecando.click
+- **DNS:** Configuração CNAME para CloudFront
+- **SSL:** Certificado wildcard (*.fiapx.wecando.click)
+- **Performance:** Cache global e otimização automática
+
+### 5. SISTEMA DE NOTIFICAÇÕES
+
+#### 📧 Email Notifications
+- **SMTP Integration:** Gmail/Google Workspace
+- **Templates:** HTML responsivos para diferentes eventos
+- **Eventos:** Processamento concluído, erros, início
+- **Queue:** RabbitMQ para notificações assíncronas
+
 ---
 
 ## ✅ FUNCIONALIDADES ESSENCIAIS IMPLEMENTADAS
@@ -159,6 +205,8 @@ O projeto FIAP-X foi desenvolvido como um sistema escalável de processamento de
 - ✅ **Sistema de alertas:** Logs estruturados para integração
 - ✅ **Error handling:** Tratamento robusto de erros
 - ✅ **Observabilidade:** Métricas para identificação proativa de problemas
+- ✅ **Email automático:** Notificações por email para usuários
+- ✅ **Templates HTML:** Emails personalizados por tipo de evento
 
 ---
 
@@ -192,6 +240,12 @@ O projeto FIAP-X foi desenvolvido como um sistema escalável de processamento de
 - ✅ **Deploy:** Deployment automático para AWS
 - ✅ **Quality Gates:** Aprovação baseada em cobertura
 
+### 🔒 HTTPS e Segurança
+- ✅ **SSL/TLS:** Certificado automático via AWS ACM
+- ✅ **CloudFront:** CDN global com cache otimizado
+- ✅ **Custom Domain:** fiapx.wecando.click com HTTPS
+- ✅ **Security Headers:** Headers de segurança configurados
+
 ---
 
 ## 🔧 STACK TECNOLÓGICA UTILIZADA
@@ -201,9 +255,17 @@ O projeto FIAP-X foi desenvolvido como um sistema escalável de processamento de
 - **Kubernetes:** Orquestração em produção AWS
 - **Helm:** Gerenciamento de packages K8s
 
-### 📨 Mensageria
+### 📨 Mensageria & Notificações
 - **RabbitMQ:** Message broker com alta disponibilidade
 - **Pattern:** Work Queue com acknowledgment
+- **SMTP:** Gmail integration para notificações
+- **Email Templates:** HTML responsivos personalizados
+
+### 🌐 CDN & HTTPS
+- **CloudFront:** CDN global da AWS
+- **SSL/TLS:** Certificados automáticos via ACM
+- **Domain:** Custom domain fiapx.wecando.click
+- **Performance:** Cache e compressão automática
 
 ### 🗄️ Banco de Dados
 - **PostgreSQL:** Base transacional principal
@@ -229,7 +291,8 @@ auth-service         85.2%       12 scenarios
 upload-service       82.7%       8 scenarios  
 processing-service   88.9%       15 scenarios
 storage-service      81.4%       10 scenarios
-Total Coverage       84.6%       45+ test cases
+notification-service 87.3%       11 scenarios
+Total Coverage       85.8%       57+ test cases
 ```
 
 ### 📈 Métricas de Performance
@@ -255,16 +318,18 @@ Total Coverage       84.6%       45+ test cases
 - **Load Balancer:** Distribuição de tráfego
 
 ### 🔒 Segurança
-- **SSL/TLS:** Certificados automáticos
+- **SSL/TLS:** Certificados automáticos via AWS ACM
+- **CloudFront:** WAF e proteção DDoS
 - **Network Policies:** Isolamento de pods
 - **RBAC:** Controle de acesso baseado em roles
 - **Secrets:** Gerenciamento seguro de credenciais
 
 ### 📊 Monitoramento Produção
 - **Uptime:** 24/7 monitoring
-- **Alerting:** Slack/Email notifications
-- **Dashboards:** Real-time visibility
+- **Alerting:** Email notifications automáticas
+- **Dashboards:** Real-time visibility via Grafana
 - **Log Aggregation:** Centralized logging
+- **Email Delivery:** Monitoramento de entrega de emails
 
 ---
 
@@ -276,19 +341,25 @@ Total Coverage       84.6%       45+ test cases
 - [x] Autenticação segura usuário/senha
 - [x] Listagem completa de status
 - [x] Sistema de notificação de erros
+- [x] **HTTPS com domínio personalizado**
+- [x] **Notificações automáticas por email**
 
 ### ✅ Qualidade Técnica
 - [x] Dados persistidos com backup
 - [x] Arquitetura escalável e resiliente
 - [x] Código versionado no GitHub
-- [x] Testes garantindo qualidade (84.6%)
+- [x] Testes garantindo qualidade (85.8%)
 - [x] CI/CD totalmente automatizado
+- [x] **SSL/TLS em produção**
+- [x] **CDN global com CloudFront**
 
 ### ✅ Observabilidade
 - [x] Métricas em tempo real
 - [x] Dashboards visuais
 - [x] Auto-scaling funcional
 - [x] Alertas proativos
+- [x] **Notificações por email automáticas**
+- [x] **Monitoramento de entrega de emails**
 
 ---
 
@@ -298,14 +369,22 @@ Total Coverage       84.6%       45+ test cases
 - `README.md` - Guia de instalação e uso
 - `docker-compose.yml` - Ambiente local de desenvolvimento
 - `infrastructure/kubernetes/` - Manifests de produção
+- `infrastructure/https-cloudfront/` - Configuração HTTPS e CDN
 - `scripts/` - Automação e utilities
 - `.github/workflows/` - Configuração CI/CD
 
 ### 🔗 Links Importantes
 - **Repositório:** [GitHub - Projeto FIAP-X]
+- **Produção:** https://fiapx.wecando.click
 - **Documentação API:** Swagger/OpenAPI specs
 - **Dashboards:** Grafana templates exportados
-- **Terraform:** Infrastructure as Code (se aplicável)
+- **CloudFront:** CDN Distribution configurada
+
+### 🚀 Scripts de Deploy
+- `setup-https-cloudfront.sh` - Configuração HTTPS e CDN
+- `setup-email-notifications.sh` - Configuração de notificações
+- `deploy-observability-aws.sh` - Deploy de monitoramento
+- `validate-https.sh` - Validação de HTTPS
 
 ---
 

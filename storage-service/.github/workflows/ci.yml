@@ -7,46 +7,103 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  security-scan:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+    
+    - name: Run basic security scan
+      run: |
+        echo "🔍 Scanning for potential security issues..."
+        # Check for common secrets patterns but exclude documentation
+        if grep -r --include="*.go" --include="*.js" --include="*.sh" "password.*=" . | grep -v test | grep -v example; then
+          echo "⚠️ Found potential hardcoded credentials"
+          exit 1
+        fi
+        echo "✅ No obvious security issues found"
+
+  test-and-quality:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
     
     - name: Set up Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v4
       with:
-        go-version: 1.19
+        go-version: 1.21
+    
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+    
+    - name: Install dependencies
+      run: go mod download
     
     - name: Build
       run: go build -v ./...
     
     - name: Test
+      env:
+        JWT_SECRET: test-jwt-secret-for-ci-only
+        POSTGRES_PASSWORD: test-password
+        MINIO_ACCESS_KEY: test-access
+        MINIO_SECRET_KEY: test-secret
       run: go test -v ./...
     
     - name: Vet
       run: go vet ./...
+    
+    - name: Go fmt check
+      run: |
+        if [ $(gofmt -s -l . | wc -l) -gt 0 ]; then
+          echo "Code is not formatted properly"
+          gofmt -s -l .
+          exit 1
+        fi
 
   build-and-push:
-    needs: test
+    needs: [security-scan, test-and-quality]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@v3
     
     - name: Login to Docker Hub
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
     
-    - name: Build and push
-      uses: docker/build-push-action@v4
+    - name: Extract service name
+      id: service
+      run: echo "name=$(basename ${{ github.repository }})" >> $GITHUB_OUTPUT
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: hqmoraes/fiapx-storage-service:latest
         platforms: linux/amd64,linux/arm64
+        tags: |
+          hqmoraes/fiapx-${{ steps.service.outputs.name }}:latest
+          hqmoraes/fiapx-${{ steps.service.outputs.name }}:${{ github.sha }}
+
+  notify-deployment:
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Notify deployment status
+      run: |
+        if [ "${{ needs.build-and-push.result }}" == "success" ]; then
+          echo "✅ Deployment successful for ${{ github.repository }}"
+        else
+          echo "❌ Deployment failed for ${{ github.repository }}"
+        fi
