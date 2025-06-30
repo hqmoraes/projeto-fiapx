@@ -131,14 +131,13 @@ curl -H "Authorization: Bearer [TOKEN]" \
 - Workflows executam em Pull Requests para "main"
 - Build e push de imagens Docker apenas na branch "main"
 
-### ⚠️ Proteção de Branch (Configuração Manual)
-Para ativar a proteção completa, configure via interface web:
-1. Acesse Settings → Branches de cada repositório
-2. Configure regra para branch "main":
-   - Require pull request before merging
-   - Require approvals: 1
-   - Dismiss stale reviews
-   - Include administrators
+### ✅ Proteção de Branch (100% CONFIGURADA)
+- ✅ Proteção automática configurada via API GitHub
+- ✅ Pull Request obrigatório para merge na main
+- ✅ Pelo menos 1 aprovação necessária
+- ✅ Reviews antigas descartadas em novos commits
+- ✅ Force push bloqueado na main
+- ✅ Deleção da branch main bloqueada
 
 ### 🔄 Fluxo de Trabalho
 ```
