@@ -21,7 +21,7 @@ metadata:
   labels:
     app: processing-service
 spec:
-  replicas: 1
+  replicas: 1  # Começar com 1 réplica
   selector:
     matchLabels:
       app: processing-service
@@ -30,11 +30,18 @@ spec:
       labels:
         app: processing-service
     spec:
-      nodeSelector:
-        kubernetes.io/hostname: ip-172-31-200-13
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: processing-service
+              topologyKey: kubernetes.io/hostname
       containers:
       - name: processing-service
-        image: hmoraes/fiapx-processing-service:v1.2
+        image: hmoraes/fiapx-processing-service:v2.1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -51,13 +58,20 @@ spec:
           value: "amqp://guest:guest@rabbitmq:5672/"
         - name: PORT
           value: "8080"
+        # Configurações para processamento de vídeo
+        - name: MAX_CONCURRENT_VIDEOS
+          value: "1"  # 1 vídeo por pod
+        - name: WORKER_TIMEOUT
+          value: "300"  # 5 minutos timeout
+        - name: FFMPEG_THREADS
+          value: "2"
         resources:
           limits:
-            cpu: "0.2"
-            memory: "128Mi"
+            cpu: "500m"      # Reduzindo para 0.5 CPU por pod
+            memory: "800Mi"  # Reduzindo para 800MB RAM por pod (permite ~4 pods)
           requests:
-            cpu: "0.05"
-            memory: "64Mi"
+            cpu: "200m"      # Reduzindo request para 0.2 CPU
+            memory: "256Mi"  # Reduzindo request para 256MB RAM
         livenessProbe:
           httpGet:
             path: /health
@@ -106,4 +120,43 @@ spec:
     ports:
     - protocol: TCP
       port: 5672
-  - {} # Allow DNS
+---
+# HorizontalPodAutoscaler para escalabilidade automática
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: processing-service-hpa
+  namespace: fiapx
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: processing-service
+  minReplicas: 1      # Mínimo 1 pod
+  maxReplicas: 5      # Máximo 5 pods para processamento paralelo
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70  # Escalar quando CPU > 70%
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80  # Escalar quando RAM > 80%
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30    # Estabilizar por 30s antes de escalar
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60   # Máximo 2 pods por minuto
+    scaleDown:
+      stabilizationWindowSeconds: 300   # Esperar 5 minutos para reduzir
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60   # Reduzir 1 pod por minuto

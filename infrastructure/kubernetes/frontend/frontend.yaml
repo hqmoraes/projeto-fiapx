@@ -17,9 +17,18 @@ spec:
         app: frontend
         version: v1
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: frontend
+              topologyKey: kubernetes.io/hostname
       containers:
       - name: frontend
-        image: hmoraes/fiapx-frontend:v2.3
+        image: hmoraes/fiapx-frontend:v2.0-multiupload
         imagePullPolicy: Always
         ports:
         - containerPort: 80

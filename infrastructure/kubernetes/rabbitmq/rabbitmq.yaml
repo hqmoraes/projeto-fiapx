@@ -8,6 +8,13 @@ data:
     loopback_users.guest = false
     listeners.tcp.default = 5672
     management.tcp.port = 15672
+    # Configurações para múltiplos consumers
+    consumer_timeout = 7200000
+    # Configurações de performance para processamento paralelo
+    vm_memory_high_watermark.relative = 0.8
+    disk_free_limit.relative = 1.0
+    # Configurações de fila para paralelismo
+    queue_master_locator = min-masters
   enabled_plugins: |
     [rabbitmq_management,rabbitmq_peer_discovery_k8s].
 ---
