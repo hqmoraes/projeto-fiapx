@@ -1,0 +1,32 @@
+# Configuração do GolangCI-Lint para Projeto FIAP-X
+# Padrões de qualidade de código Go
+
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - bodyclose
+    - errcheck
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+    - unparam
+
+  disable:
+    - maligned
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
