@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "FIAP-X Processing Service - Dashboard",
+    "description": "Dashboard customizado para monitoramento do processing-service do projeto FIAP-X",
+    "tags": ["fiapx", "processing", "video", "microservices"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Processing Service Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"processing-service\"}",
+            "legendFormat": "Service Status"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {
+                "options": {
+                  "0": {
+                    "text": "DOWN",
+                    "color": "red"
+                  },
+                  "1": {
+                    "text": "UP",
+                    "color": "green"
+                  }
+                },
+                "type": "value"
+              }
+            ],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{namespace=\"fiapx\", pod=~\"processing-service.*\"}[5m]) * 100",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "CPU %",
+            "max": 100,
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 9,
+          "x": 6,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes{namespace=\"fiapx\", pod=~\"processing-service.*\"} / 1024 / 1024",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Memory (MB)",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 9,
+          "x": 15,
+          "y": 0
+        }
+      },
+      {
+        "id": 4,
+        "title": "HTTP Requests Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(promhttp_metric_handler_requests_total{job=\"processing-service\"}[5m])",
+            "legendFormat": "Requests/sec"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "Go Goroutines",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "go_goroutines{job=\"processing-service\"}",
+            "legendFormat": "Goroutines"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 6,
+        "title": "Pod Replicas (HPA)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kube_deployment_status_replicas{deployment=\"processing-service\", namespace=\"fiapx\"}",
+            "legendFormat": "Current Replicas"
+          },
+          {
+            "expr": "kube_deployment_spec_replicas{deployment=\"processing-service\", namespace=\"fiapx\"}",
+            "legendFormat": "Desired Replicas"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 7,
+        "title": "Processing Service Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{namespace=\"fiapx\", app=\"processing-service\"}"
+          }
+        ],
+        "gridPos": {
+          "h": 10,
+          "w": 24,
+          "x": 0,
+          "y": 24
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "5s",
+    "schemaVersion": 27,
+    "version": 1
+  }
+}

@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# Script Final - Coleta de Evidências Visuais
+# Projeto FIAP-X - Sistema de Processamento de Vídeos
+
+set -e
+
+echo "🎯 FIAP-X - COLETA DE EVIDÊNCIAS VISUAIS"
+echo "========================================"
+echo ""
+
+# Obter senha do Grafana
+GRAFANA_PASSWORD=$(kubectl --namespace monitoring get secrets prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 -d)
+
+echo "📋 INSTRUÇÕES PARA COLETA DE EVIDÊNCIAS:"
+echo ""
+echo "1️⃣  ACESSO AOS DASHBOARDS"
+echo "   🎨 Grafana: http://localhost:3000"
+echo "   📊 Prometheus: http://localhost:9090"
+echo "   🔑 Credenciais Grafana: admin / $GRAFANA_PASSWORD"
+echo ""
+
+echo "2️⃣  COMANDOS PARA PORT-FORWARD (Execute em terminais separados):"
+echo ""
+echo "   Terminal 1 - Grafana:"
+echo "   kubectl port-forward svc/prometheus-grafana 3000:80 -n monitoring"
+echo ""
+echo "   Terminal 2 - Prometheus:"
+echo "   kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 -n monitoring"
+echo ""
+
+echo "3️⃣  DASHBOARDS PARA IMPORTAR NO GRAFANA:"
+echo "   • Dashboard ID 315: Kubernetes Cluster Monitoring"
+echo "   • Dashboard ID 6671: Go Processes"
+echo "   • Dashboard ID 1860: Node Exporter Full"
+echo "   • Dashboard ID 10257: Kubernetes Pod Monitoring"
+echo "   • Dashboard customizado: grafana-dashboards/fiapx-processing-dashboard.json"
+echo ""
+
+echo "4️⃣  QUERIES ESSENCIAIS PARA PROMETHEUS:"
+echo ""
+echo "   CPU Usage:"
+echo "   rate(container_cpu_usage_seconds_total{namespace=\"fiapx\"}[5m]) * 100"
+echo ""
+echo "   Memory Usage:"
+echo "   container_memory_usage_bytes{namespace=\"fiapx\"} / 1024 / 1024"
+echo ""
+echo "   Processing Service Status:"
+echo "   up{job=\"processing-service\"}"
+echo ""
+echo "   HTTP Requests:"
+echo "   rate(promhttp_metric_handler_requests_total[5m])"
+echo ""
+echo "   Go Goroutines:"
+echo "   go_goroutines{job=\"processing-service\"}"
+echo ""
+echo "   HPA Status:"
+echo "   kube_deployment_status_replicas{deployment=\"processing-service\"}"
+echo ""
+
+echo "5️⃣  EVIDÊNCIAS PARA COLETAR (SCREENSHOTS):"
+echo "   📊 Dashboard principal do Grafana"
+echo "   📈 Métricas de CPU e Memory"
+echo "   🎯 Status do Processing Service"
+echo "   🔄 Graficos de HPA (escalabilidade)"
+echo "   🧪 Queries no Prometheus"
+echo "   📋 Lista de pods (kubectl get pods -n fiapx)"
+echo "   📋 Status do HPA (kubectl get hpa -n fiapx)"
+echo ""
+
+echo "6️⃣  TESTE DE CARGA PARA ATIVAR HPA:"
+echo "   kubectl run load-test --image=busybox --rm -it --restart=Never -- /bin/sh"
+echo "   Dentro do pod:"
+echo "   while true; do wget -q -O- http://processing-service.fiapx.svc.cluster.local:8080/health; done"
+echo ""
+
+echo "7️⃣  COMANDOS DE VALIDAÇÃO:"
+echo "   kubectl get pods -n fiapx"
+echo "   kubectl get pods -n monitoring"
+echo "   kubectl get hpa -n fiapx"
+echo "   kubectl get servicemonitor -n monitoring"
+echo "   kubectl top pods -n fiapx"
+echo ""
+
+echo "✅ STATUS ATUAL DO SISTEMA:"
+echo "   🟢 Processing Service: $(kubectl get pods -n fiapx | grep processing | awk '{print $3}')"
+echo "   🟢 Grafana: $(kubectl get pods -n monitoring | grep grafana | awk '{print $3}')"
+echo "   🟢 Prometheus: $(kubectl get pods -n monitoring | grep prometheus-prometheus | awk '{print $3}')"
+echo "   🟢 ServiceMonitor: $(kubectl get servicemonitor processing-service -n monitoring --no-headers | awk '{print "Configured"}')"
+echo ""
+
+echo "🎉 SISTEMA DE OBSERVABILIDADE IMPLANTADO COM SUCESSO!"
+echo ""
+echo "📝 RELATÓRIO COMPLETO: observability-evidence-report-$(date +%Y%m%d-*)*.md"
+echo ""
+echo "🚀 PRÓXIMOS PASSOS:"
+echo "   1. Execute os port-forwards acima"
+echo "   2. Acesse os dashboards e colete screenshots"
+echo "   3. Execute teste de carga para ver HPA em ação"
+echo "   4. Documente evidências no relatório final"
+echo ""

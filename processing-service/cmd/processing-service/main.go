@@ -20,6 +20,7 @@ import (
 	"github.com/streadway/amqp"
 	"github.com/rs/cors"
 	"github.com/go-redis/redis/v8"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type ProcessingService struct {
@@ -695,6 +696,8 @@ func main() {
 	r.HandleFunc("/status/{id}", processingService.StatusHandler).Methods("GET")
 	r.HandleFunc("/queue/status", processingService.QueueStatusHandler).Methods("GET")
 	r.HandleFunc("/queue/position/{id}", processingService.VideoQueuePositionHandler).Methods("GET")
+	// Expor métricas Prometheus
+	r.Handle("/metrics", promhttp.Handler()).Methods("GET")
 
 	// Configurar CORS
 	c := cors.New(cors.Options{
