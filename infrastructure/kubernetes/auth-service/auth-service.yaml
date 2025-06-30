@@ -56,6 +56,14 @@ spec:
             secretKeyRef:
               name: auth-secret
               key: jwt-secret
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6380"
+        - name: REDIS_DB
+          value: "1"
+        - name: REDIS_SESSION_TTL
+          value: "3600"  # 1 hora
         - name: PORT
           value: "8081"
         resources:
@@ -109,3 +117,10 @@ spec:
     ports:
     - protocol: TCP
       port: 5432
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6380

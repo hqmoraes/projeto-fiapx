@@ -41,7 +41,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: processing-service
-        image: hmoraes/fiapx-processing-service:v2.2-queue
+        image: hmoraes/fiapx-processing-service:v2.3-redis-fix
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -56,6 +56,12 @@ spec:
           value: "false"
         - name: RABBITMQ_URL
           value: "amqp://guest:guest@rabbitmq:5672/"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6380"
+        - name: REDIS_DB
+          value: "0"
         - name: PORT
           value: "8080"
         # Configurações para processamento de vídeo
@@ -120,6 +126,13 @@ spec:
     ports:
     - protocol: TCP
       port: 5672
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6380
 ---
 # HorizontalPodAutoscaler para escalabilidade automática
 apiVersion: autoscaling/v2

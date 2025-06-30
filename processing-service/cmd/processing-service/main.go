@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -18,12 +19,14 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/streadway/amqp"
 	"github.com/rs/cors"
+	"github.com/go-redis/redis/v8"
 )
 
 type ProcessingService struct {
 	MinioClient *minio.Client
 	RabbitConn  *amqp.Connection
 	RabbitCh    *amqp.Channel
+	RedisClient *redis.Client
 }
 
 type ProcessingMessage struct {
@@ -118,10 +121,40 @@ func NewProcessingService() (*ProcessingService, error) {
 		log.Printf("Bucket %s criado com sucesso", bucketName)
 	}
 
+	// Configurar Redis
+	var redisClient *redis.Client
+	redisHost := getEnv("REDIS_HOST", "redis")
+	redisPort := getEnv("REDIS_PORT", "6380")
+	redisDB := getEnv("REDIS_DB", "0")
+	
+	db, err := strconv.Atoi(redisDB)
+	if err != nil {
+		log.Printf("Erro ao converter REDIS_DB, usando padrão 0: %v", err)
+		db = 0
+	}
+	
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     redisHost + ":" + redisPort,
+		Password: "", // sem senha
+		DB:       db,
+	})
+	
+	// Testar conexão Redis
+	ctx := context.Background()
+	_, err = redisClient.Ping(ctx).Result()
+	if err != nil {
+		log.Printf("Aviso: Erro ao conectar com Redis: %v", err)
+		log.Printf("Continuando sem cache Redis...")
+		redisClient = nil
+	} else {
+		log.Printf("Redis conectado com sucesso em %s:%s DB:%d", redisHost, redisPort, db)
+	}
+
 	return &ProcessingService{
 		MinioClient: minioClient,
 		RabbitConn:  rabbitConn,
 		RabbitCh:    rabbitCh,
+		RedisClient: redisClient,
 	}, nil
 }
 
@@ -151,6 +184,15 @@ func (ps *ProcessingService) StartProcessingWorker() {
 		}
 
 		log.Printf("Processando vídeo: %s", processingMsg.VideoID)
+		
+		// Invalidar cache no início do processamento
+		if ps.RedisClient != nil {
+			err = ps.invalidateQueueCache()
+			if err != nil {
+				log.Printf("Erro ao invalidar cache no início: %v", err)
+			}
+		}
+		
 		result := ps.processVideo(processingMsg)
 
 		// Publicar resultado
@@ -178,6 +220,14 @@ func (ps *ProcessingService) StartProcessingWorker() {
 
 		msg.Ack(false)
 		log.Printf("Vídeo processado com sucesso: %s", processingMsg.VideoID)
+		
+		// Invalidar cache após processamento concluído
+		if ps.RedisClient != nil {
+			err = ps.invalidateQueueCache()
+			if err != nil {
+				log.Printf("Erro ao invalidar cache após processamento: %v", err)
+			}
+		}
 	}
 }
 
@@ -416,6 +466,14 @@ func (ps *ProcessingService) StatusHandler(w http.ResponseWriter, r *http.Reques
 func (ps *ProcessingService) QueueStatusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	
+	// Tentar obter status do cache Redis
+	cachedStatus, err := ps.getCachedQueueStatus()
+	if err == nil && cachedStatus != nil {
+		// Retornar status do cache
+		json.NewEncoder(w).Encode(cachedStatus)
+		return
+	}
+
 	// Obter informações da fila RabbitMQ
 	queueInfo, err := ps.RabbitCh.QueueInspect("video_processing")
 	if err != nil {
@@ -438,6 +496,12 @@ func (ps *ProcessingService) QueueStatusHandler(w http.ResponseWriter, r *http.R
 		VideosInQueue:   []QueueVideoInfo{}, // Em produção, obteria de BD
 	}
 
+	// Cachear status no Redis
+	err = ps.cacheQueueStatus(status)
+	if err != nil {
+		log.Printf("Erro ao cachear status da fila: %v", err)
+	}
+
 	json.NewEncoder(w).Encode(status)
 }
 
@@ -446,6 +510,14 @@ func (ps *ProcessingService) VideoQueuePositionHandler(w http.ResponseWriter, r 
 	videoID := mux.Vars(r)["id"]
 	w.Header().Set("Content-Type", "application/json")
 	
+	// Tentar obter posição do cache Redis
+	cachedPosition, err := ps.getCachedVideoPosition(videoID)
+	if err == nil && cachedPosition != nil {
+		// Retornar posição do cache
+		json.NewEncoder(w).Encode(cachedPosition)
+		return
+	}
+
 	// Log para debug
 	log.Printf("Consultando posição na fila para vídeo: %s", videoID)
 	
@@ -473,7 +545,116 @@ func (ps *ProcessingService) VideoQueuePositionHandler(w http.ResponseWriter, r 
 		EstimatedWaitTime: estimatedWaitTime,
 	}
 
+	// Cachear posição no Redis
+	err = ps.cacheVideoPosition(videoID, result)
+	if err != nil {
+		log.Printf("Erro ao cachear posição do vídeo %s: %v", videoID, err)
+	}
+
 	json.NewEncoder(w).Encode(result)
+}
+
+// Redis Cache Functions
+const (
+	CACHE_KEY_QUEUE_STATUS = "queue:status"
+	CACHE_KEY_VIDEO_POSITION = "queue:position:"
+	CACHE_TTL_QUEUE_STATUS = 10 * time.Second  // Cache por 10 segundos
+	CACHE_TTL_VIDEO_POSITION = 30 * time.Second // Cache por 30 segundos
+)
+
+// Cachear status da fila no Redis
+func (ps *ProcessingService) cacheQueueStatus(status QueueStatus) error {
+	if ps.RedisClient == nil {
+		return nil // Sem Redis configurado
+	}
+	
+	ctx := context.Background()
+	data, err := json.Marshal(status)
+	if err != nil {
+		return err
+	}
+	
+	return ps.RedisClient.Set(ctx, CACHE_KEY_QUEUE_STATUS, data, CACHE_TTL_QUEUE_STATUS).Err()
+}
+
+// Obter status da fila do cache Redis
+func (ps *ProcessingService) getCachedQueueStatus() (*QueueStatus, error) {
+	if ps.RedisClient == nil {
+		return nil, nil // Sem Redis configurado
+	}
+	
+	ctx := context.Background()
+	data, err := ps.RedisClient.Get(ctx, CACHE_KEY_QUEUE_STATUS).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil // Cache miss
+		}
+		return nil, err
+	}
+	
+	var status QueueStatus
+	err = json.Unmarshal([]byte(data), &status)
+	if err != nil {
+		return nil, err
+	}
+	
+	return &status, nil
+}
+
+// Cachear posição do vídeo no Redis
+func (ps *ProcessingService) cacheVideoPosition(videoID string, position VideoQueuePosition) error {
+	ctx := context.Background()
+	data, err := json.Marshal(position)
+	if err != nil {
+		return err
+	}
+	
+	key := CACHE_KEY_VIDEO_POSITION + videoID
+	return ps.RedisClient.Set(ctx, key, data, CACHE_TTL_VIDEO_POSITION).Err()
+}
+
+// Obter posição do vídeo do cache Redis
+func (ps *ProcessingService) getCachedVideoPosition(videoID string) (*VideoQueuePosition, error) {
+	ctx := context.Background()
+	key := CACHE_KEY_VIDEO_POSITION + videoID
+	data, err := ps.RedisClient.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil // Cache miss
+		}
+		return nil, err
+	}
+	
+	var position VideoQueuePosition
+	err = json.Unmarshal([]byte(data), &position)
+	if err != nil {
+		return nil, err
+	}
+	
+	return &position, nil
+}
+
+// Invalidar cache quando houver mudanças na fila
+func (ps *ProcessingService) invalidateQueueCache() error {
+	if ps.RedisClient == nil {
+		return nil // Sem Redis configurado
+	}
+	
+	ctx := context.Background()
+	// Remover cache de status
+	ps.RedisClient.Del(ctx, CACHE_KEY_QUEUE_STATUS)
+	
+	// Remover todos os caches de posição (usando pattern)
+	keys, err := ps.RedisClient.Keys(ctx, CACHE_KEY_VIDEO_POSITION+"*").Result()
+	if err != nil {
+		return err
+	}
+	
+	if len(keys) > 0 {
+		ps.RedisClient.Del(ctx, keys...)
+	}
+	
+	return nil
 }
 
 // Função auxiliar para min
@@ -501,6 +682,9 @@ func main() {
 	}
 	defer processingService.RabbitConn.Close()
 	defer processingService.RabbitCh.Close()
+	if processingService.RedisClient != nil {
+		defer processingService.RedisClient.Close()
+	}
 
 	// Iniciar worker em goroutine
 	go processingService.StartProcessingWorker()
