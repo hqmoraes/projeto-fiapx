@@ -169,22 +169,24 @@ rabbitmq-data/
 # ========================================================
 
 # API Gateway
-api-gateway
+/api-gateway/
 
 # Auth Service
-auth-service
+/auth-service/
 
 # Upload Service
-upload-service
+/upload-service/
+
 
 # Processing Service
-processing-service
+/processing-service/
 
 # Storage Service
-storage-service
+/storage-service/
 
 # Notification Service
-notification-service
+/notification-service/
+
 
 # Frontend
-frontend
+/frontend/
