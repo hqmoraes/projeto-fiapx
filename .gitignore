@@ -169,53 +169,22 @@ rabbitmq-data/
 # ========================================================
 
 # API Gateway
-api-gateway/api-gateway
-api-gateway/*.log
-api-gateway/tmp/
-api-gateway/.env*
-api-gateway/vendor/
+api-gateway
 
 # Auth Service
-auth-service/auth-service
-auth-service/*.log
-auth-service/tmp/
-auth-service/.env*
-auth-service/vendor/
+auth-service
 
 # Upload Service
-upload-service/upload-service
-upload-service/*.log
-upload-service/tmp/
-upload-service/.env*
-upload-service/vendor/
-upload-service/uploads/
+upload-service
 
 # Processing Service
-processing-service/processing-service
-processing-service/*.log
-processing-service/tmp/
-processing-service/.env*
-processing-service/vendor/
-processing-service/temp/
+processing-service
 
 # Storage Service
-storage-service/storage-service
-storage-service/*.log
-storage-service/tmp/
-storage-service/.env*
-storage-service/vendor/
+storage-service
 
 # Notification Service
-notification-service/notification-service
-notification-service/*.log
-notification-service/tmp/
-notification-service/.env*
-notification-service/vendor/
+notification-service
 
 # Frontend
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/build/
-frontend/.env*
-frontend/*.log
+frontend
