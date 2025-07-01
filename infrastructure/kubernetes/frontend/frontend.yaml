@@ -28,7 +28,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: frontend
-        image: hmoraes/fiapx-frontend:v2.3-fix
+        image: hmoraes/fiapx-frontend:v2.4-https
         imagePullPolicy: Always
         ports:
         - containerPort: 80

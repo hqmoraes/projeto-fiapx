@@ -192,6 +192,82 @@ O sistema envia emails automáticos para usuários sobre:
 - `./infrastructure/https-cloudfront/validate-https.sh` - Validar HTTPS
 - `./scripts/generate-evidence-report.sh` - Gerar relatório de evidências
 
+## 🤖 Automação de Deploy - Notification Service
+
+### GitHub Actions Workflows
+
+O notification-service possui automação completa de deploy com os seguintes workflows:
+
+#### 1. Deploy Automático (`deploy-notification-service.yml`)
+- **Trigger**: Push no diretório `notification-service/` na branch `main`
+- **Funcionalidades**:
+  - ✅ Detecção automática de mudanças
+  - ✅ Testes e security scan
+  - ✅ Build multi-arquitetura (AMD64/ARM64)
+  - ✅ Push automático para Docker Hub
+  - ✅ Deploy direto no Kubernetes via SSH
+  - ✅ Health checks e verificação de logs
+  - ✅ Comentários automáticos em PRs
+
+#### 2. Workflow Manual
+```bash
+# Trigger manual via GitHub Actions
+# - force_deploy: true/false (ignorar detecção de mudanças)
+# - image_tag: custom tag (padrão: latest)
+```
+
+### Scripts de Gerenciamento
+
+#### Teste de Deployment
+```bash
+./infrastructure/scripts/test-notification-deployment.sh
+```
+- Verifica conectividade com cluster
+- Valida secrets e dependências
+- Aplica manifests e monitora deploy
+- Executa health checks
+
+#### Monitoramento Contínuo
+```bash
+# Verificação única
+./infrastructure/scripts/monitor-notification-service.sh
+
+# Modo watch (monitoramento contínuo)
+./infrastructure/scripts/monitor-notification-service.sh --watch
+```
+- Status de deployment e pods
+- Uso de recursos (CPU/memória)
+- Logs recentes e events
+- Verificação de conectividade com RabbitMQ
+- Status dos secrets SES
+
+#### Rollback Automático
+```bash
+# Rollback para versão anterior
+./infrastructure/scripts/rollback-notification-service.sh
+
+# Rollback para versão específica
+./infrastructure/scripts/rollback-notification-service.sh --to-revision 5
+```
+- Lista revisões disponíveis
+- Executa rollback automático
+- Aguarda estabilização
+- Executa health checks pós-rollback
+
+### Configuração dos Secrets GitHub
+
+Para automação funcionar, configure os secrets:
+```bash
+# Secrets necessários no GitHub
+DOCKER_USERNAME     # Usuário Docker Hub
+DOCKER_PASSWORD     # Token Docker Hub
+SSH_PRIVATE_KEY     # Chave SSH para acesso ao cluster
+SSH_USER           # Usuário SSH (ex: ubuntu)
+K8S_HOST           # IP do node Kubernetes
+```
+
+### Validação
+
 ## 📋 Documentação Adicional
 
 ### Arquitetura e Implementação
