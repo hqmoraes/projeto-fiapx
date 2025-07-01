@@ -51,6 +51,11 @@ kubeconfig*.yaml
 .DS_Store
 Thumbs.db
 
+# Context files (not for version control)
+.project-context.md
+.service-context.md
+.scripts-context.md
+
 # Logs
 *.log
 logs/

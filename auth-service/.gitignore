@@ -24,3 +24,6 @@ keyPrincipal*
 *aws-credentials*
 *ses-credentials*
 *smtp-credentials*
+
+# Context files (not for version control)
+.service-context.md

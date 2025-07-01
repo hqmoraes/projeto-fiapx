@@ -1,0 +1,18 @@
+# Terraform state files
+*.tfstate
+*.tfstate.*
+
+# Terraform cache
+.terraform/
+.terraform.lock.hcl
+
+# Kubernetes secrets
+*-secret.yaml
+*secret*.yaml
+
+# Local kubeconfig files
+kubeconfig*
+*kubeconfig*
+
+# Context files (not for version control)
+.service-context.md
