@@ -164,3 +164,58 @@ rabbitmq-data/
 # Monitoring and metrics
 /prometheus-data/
 /grafana-data/
+
+# Microsserviços - Arquivos específicos de cada serviço
+# ========================================================
+
+# API Gateway
+api-gateway/api-gateway
+api-gateway/*.log
+api-gateway/tmp/
+api-gateway/.env*
+api-gateway/vendor/
+
+# Auth Service
+auth-service/auth-service
+auth-service/*.log
+auth-service/tmp/
+auth-service/.env*
+auth-service/vendor/
+
+# Upload Service
+upload-service/upload-service
+upload-service/*.log
+upload-service/tmp/
+upload-service/.env*
+upload-service/vendor/
+upload-service/uploads/
+
+# Processing Service
+processing-service/processing-service
+processing-service/*.log
+processing-service/tmp/
+processing-service/.env*
+processing-service/vendor/
+processing-service/temp/
+
+# Storage Service
+storage-service/storage-service
+storage-service/*.log
+storage-service/tmp/
+storage-service/.env*
+storage-service/vendor/
+
+# Notification Service
+notification-service/notification-service
+notification-service/*.log
+notification-service/tmp/
+notification-service/.env*
+notification-service/vendor/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env*
+frontend/*.log

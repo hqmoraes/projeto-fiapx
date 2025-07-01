@@ -1,38 +1,55 @@
 # Notification Service - FIAP-X
 # Handles email notifications for video processing events
 
-FROM golang:1.22-alpine AS builder
+# Build stage
+FROM golang:1.21-alpine AS builder
+
+# Security: Install ca-certificates and git
+RUN apk add --no-cache ca-certificates git
+
+# Create non-root user for build
+RUN adduser -D -g '' appuser
 
 WORKDIR /app
 
-# Copy go mod file
-COPY go.mod ./
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
 
 # Download dependencies
-RUN go mod download
+RUN go mod download && go mod verify
 
 # Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o notification-service ./cmd/notification-service
+# Build the application with security flags
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -a -installsuffix cgo \
+    -ldflags='-w -s -extldflags "-static"' \
+    -o notification-service ./cmd/notification-service
 
-# Final stage
-FROM alpine:latest
+# Runtime stage - Use distroless for security
+FROM gcr.io/distroless/static:nonroot
 
-RUN apk --no-cache add ca-certificates tzdata
-
-WORKDIR /root/
+# Copy ca-certificates from builder
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy the binary from builder stage
-COPY --from=builder /app/notification-service .
+COPY --from=builder /app/notification-service /notification-service
 
-# Health check
+# Use non-root user
+USER nonroot:nonroot
+
+# Health check using basic process check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD ps aux | grep notification-service || exit 1
+    CMD ["/notification-service", "--health-check"] || exit 1
 
-# Expose port (if needed for health checks)
+# Expose port for metrics/health (if implemented)
 EXPOSE 8080
 
+# Labels for metadata
+LABEL maintainer="FIAP-X Team"
+LABEL version="1.0"
+LABEL description="Notification Service for video processing events"
+
 # Command to run the executable
-CMD ["./notification-service"]
+ENTRYPOINT ["/notification-service"]

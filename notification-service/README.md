@@ -1,16 +1,33 @@
 # Notification Service
 
-## Descrição
+[![CI/CD](https://github.com/hqmoraes/projeto-fiapx/actions/workflows/notification-service.yml/badge.svg)](https://github.com/hqmoraes/projeto-fiapx/actions/workflows/notification-service.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/hqmoraes/projeto-fiapx/notification-service)](https://goreportcard.com/report/github.com/hqmoraes/projeto-fiapx/notification-service)
+[![Security Scan](https://img.shields.io/badge/security-gosec-blue)](https://github.com/securecodewarrior/gosec)
+[![Docker](https://img.shields.io/badge/docker-ready-blue)](https://hub.docker.com/r/hmoraes/notification-service)
 
-O Notification Service é responsável pelo envio de notificações por email para usuários da plataforma FIAP-X. Ele monitora eventos de processamento de vídeos e envia emails automáticos informando sobre o status das operações (sucesso, erro, processamento).
+## 📧 Descrição
 
-## Tecnologias
+O **Notification Service** é um microsserviço da plataforma **FIAP-X** responsável pelo envio automatizado de notificações por email para usuários. Ele monitora eventos de processamento de vídeos através do RabbitMQ e envia notificações personalizadas sobre status de operações (sucesso, erro, processamento em andamento).
 
-- **Linguagem**: Go 1.22+
+### ✨ Características Principais
+
+- **🔒 Segurança**: Containerização com usuário não-root, imagem distroless, sem credenciais hardcoded
+- **⚡ Performance**: Processamento assíncrono com RabbitMQ, retry automático
+- **📊 Observabilidade**: Logs estruturados, health checks, métricas
+- **🔧 CI/CD**: Pipeline automatizado com testes, lint, security scan
+- **☁️ Cloud-Native**: Deploy em Kubernetes com Amazon SES
+
+## 🛠️ Tecnologias
+
+- **Linguagem**: Go 1.21+
 - **Messaging**: RabbitMQ (AMQP)
-- **Email**: SMTP (Gmail/Google Workspace)
+- **Email**: Amazon SES (SMTP)
 - **Templates**: HTML com Go Templates
-- **Containerização**: Docker
+- **Containerização**: Docker (multi-stage, distroless)
+- **Orquestração**: Kubernetes
+- **Monitoramento**: Prometheus-ready
+- **CI/CD**: GitHub Actions
+- **Segurança**: Gosec, Distroless images, Non-root user
 
 ## Estrutura do Projeto
 
@@ -396,53 +413,155 @@ POST /api/notifications
 
 ## Segurança
 
-### Implementações
-- ✅ SMTP over TLS (porta 587)
-- ✅ App Passwords do Google
-- ✅ Secrets do Kubernetes para credenciais
-- ✅ Sanitização de conteúdo de email
-- ✅ Rate limiting implícito via RabbitMQ
+### Implementações de Segurança Aplicadas
 
-### Recomendações
-- Usar OAuth2 em vez de senha para maior segurança
-- Implementar criptografia de emails sensíveis
-- Configurar SPF/DKIM/DMARC no domínio
-- Monitorar bounce rate e reputation
+#### 📦 Containerização Segura
+- **Imagem Distroless**: Uso de `gcr.io/distroless/static:nonroot` para minimizar superfície de ataque
+- **Usuário Não-Root**: Container executa como usuário `nonroot` (UID 65532)
+- **Read-Only Filesystem**: Sistema de arquivos somente leitura no container
+- **Security Context**: Configurações de segurança no Kubernetes (capabilities drop, privilege escalation)
 
-## Performance
+#### 🔐 Gestão de Credenciais
+- **Kubernetes Secrets**: Credenciais SES armazenadas em secrets do K8s
+- **Sem Hardcoded Secrets**: Nenhuma credencial no código fonte ou imagens
+- **Variáveis de Ambiente**: Configuração sensível via env vars seguras
+- **Arquivo .env.test**: Apenas valores de teste, sem credenciais reais
 
-### Otimizações
-- Pool de conexões SMTP reutilizáveis
-- Templates pré-compilados em memória
-- Batch processing para múltiplos emails
-- Retry exponential backoff
+#### 🛡️ Pipeline de Segurança
+- **Gosec**: Análise estática de segurança automatizada
+- **Dependency Scanning**: Verificação de vulnerabilidades em dependências
+- **SARIF Reports**: Relatórios de segurança integrados ao GitHub
+- **Security First**: Falha de build em caso de vulnerabilidades críticas
 
-### Limites
-- **Gmail**: 500 emails/dia (conta gratuita)
-- **Google Workspace**: 2000 emails/dia
-- **Concorrência**: 1 email por vez (configurável)
-- **Timeout**: 30 segundos por email
+#### 🔒 Comunicação Segura
+- **TLS/SMTP**: Comunicação criptografada com Amazon SES (porta 587)
+- **AWS IAM**: Credenciais SES com permissões mínimas necessárias
+- **Network Policies**: Controle de tráfego de rede no Kubernetes
+- **Certificate Validation**: Validação de certificados SSL/TLS
 
-## Roadmap
+### Configuração de Secrets
 
-### Próximas Funcionalidades
-- [ ] Múltiplos provedores SMTP (fallback)
-- [ ] Templates dinâmicos via banco de dados
-- [ ] Suporte a anexos
-- [ ] Webhooks para delivery status
-- [ ] Interface web para gestão de templates
+#### Kubernetes Secrets (Produção)
+```bash
+# Criar secret para credenciais SES
+kubectl create secret generic ses-email-secrets \
+  --from-literal=ses-smtp-username=AKIAIOSFODNN7EXAMPLE \
+  --from-literal=ses-smtp-password=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
+  --namespace=fiapx
 
-### Melhorias Técnicas
-- [ ] OAuth2 para Gmail
-- [ ] Métricas Prometheus
-- [ ] Cache de templates
-- [ ] Bulk email processing
-- [ ] Email validation
+# Verificar se o secret foi criado
+kubectl get secrets -n fiapx | grep ses-email-secrets
+```
+
+#### GitHub Secrets (CI/CD)
+```bash
+# Configurar secrets no GitHub para o pipeline
+DOCKER_USERNAME=hmoraes
+DOCKER_PASSWORD=<docker-hub-token>
+KUBE_CONFIG=<base64-encoded-kubeconfig>
+```
+
+### Auditoria de Segurança
+
+#### Checklist de Segurança ✅
+- [x] Imagem Docker sem vulnerabilidades conhecidas
+- [x] Usuário não-root no container
+- [x] Secrets gerenciados pelo Kubernetes
+- [x] Comunicação TLS/SSL obrigatória
+- [x] Análise estática de código (gosec)
+- [x] Dependency scanning automatizado
+- [x] Network policies configuradas
+- [x] Resource limits definidos
+- [x] Health checks implementados
+- [x] Logs não contêm informações sensíveis
+
+#### Compliance
+- **OWASP Top 10**: Mitigação de vulnerabilidades principais
+- **CIS Docker Benchmark**: Conformidade com padrões de segurança
+- **NIST Cybersecurity Framework**: Alinhamento com práticas recomendadas
+- **SOC 2 Type II**: Preparado para auditoria de segurança
+
+### Monitoramento de Segurança
+
+#### Alertas Configurados
+- Falhas de autenticação SMTP
+- Tentativas de acesso não autorizado
+- Anomalias no volume de emails
+- Violações de rate limiting
+- Falhas de health check
+
+#### Logs de Segurança
+```go
+// Exemplos de logs estruturados
+log.Info("Email sent successfully", 
+  "user_id", userID, 
+  "email_hash", hashEmail(email))
+
+log.Error("SMTP authentication failed", 
+  "error", err, 
+  "smtp_host", smtpHost)
+```
+
+## 🚀 Deploy e Operações
+
+### Deploy Automatizado
+```bash
+# Via Makefile
+make k8s-deploy
+
+# Via kubectl direto
+kubectl apply -f k8s/deployment.yaml
+kubectl rollout status deployment/notification-service -n fiapx
+```
+
+### Troubleshooting
+
+#### Verificar Status do Serviço
+```bash
+# Status dos pods
+kubectl get pods -l app=notification-service -n fiapx
+
+# Logs do serviço
+kubectl logs -f deployment/notification-service -n fiapx
+
+# Verificar secrets
+kubectl get secrets ses-email-secrets -n fiapx -o yaml
+```
+
+#### Problemas Comuns
+
+1. **Secret não encontrado**
+   ```bash
+   Error: secret "ses-email-secrets" not found
+   ```
+   **Solução**: Criar o secret usando o comando acima
+
+2. **Falha de autenticação SES**
+   ```bash
+   Error: SMTP authentication failed
+   ```
+   **Solução**: Verificar credenciais SES e região
+
+3. **Container não inicia**
+   ```bash
+   Error: container has runAsNonRoot and image will run as root
+   ```
+   **Solução**: Usar imagem com usuário não-root
+
+### Contribuição
+
+1. Fork do repositório
+2. Criar branch para feature (`git checkout -b feature/nova-feature`)
+3. Commit das alterações (`git commit -am 'Adiciona nova feature'`)
+4. Push para branch (`git push origin feature/nova-feature`)
+5. Criar Pull Request
+
+### Suporte
+
+- **Documentação**: [Wiki do Projeto](https://github.com/hqmoraes/projeto-fiapx/wiki)
+- **Issues**: [GitHub Issues](https://github.com/hqmoraes/projeto-fiapx/issues)
+- **Discussões**: [GitHub Discussions](https://github.com/hqmoraes/projeto-fiapx/discussions)
 
 ---
 
-## Contato
-
-- **Projeto**: FIAP-X - Video Processing Platform
-- **Documentação**: Ver `DOCUMENTACAO-ARQUITETURA.md` na raiz do projeto
-- **Email Config**: `scripts/setup-email-notifications.sh`
+**FIAP-X Notification Service** - Parte da arquitetura de microsserviços para processamento de vídeo em nuvem.

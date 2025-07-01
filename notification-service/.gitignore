@@ -1,0 +1,151 @@
+# Binários
+notification-service
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Arquivos de teste
+*.test
+
+# Output de coverage
+*.out
+
+# Diretórios de dependências de vendoring
+vendor/
+
+# Diretórios de build
+build/
+dist/
+
+# Logs
+*.log
+logs/
+
+# Arquivos de ambiente/configuração
+.env
+.env.local
+.env.*.local
+*.env
+
+# Arquivos de credenciais e secrets
+secrets/
+config/secrets.yaml
+config/secrets.yml
+config/credentials.json
+config/service-account.json
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Arquivos de configuração específicos do IDE
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Arquivos temporários
+tmp/
+temp/
+*.tmp
+
+# Arquivos de cache
+.cache/
+*.cache
+
+# Arquivos de sistema do macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Arquivos de sistema do Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Arquivos de sistema do Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Cobertura de testes
+coverage.txt
+coverage.html
+coverage.xml
+*.cover
+
+# Profiling
+*.prof
+*.cpu
+*.mem
+
+# Arquivos de análise estática
+.staticcheck/
+.golangci-lint/
+
+# Diretórios de documentação gerada
+docs/build/
+site/
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Helm
+charts/*.tgz
+
+# Node modules (se houver)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python (se houver)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads/Downloads
+uploads/
+downloads/
