@@ -19,9 +19,6 @@ go.work
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-# Go module cache
-go.sum
-
 # Build artifacts
 /build/
 /dist/
