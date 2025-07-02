@@ -19,9 +19,6 @@ vendor/
 build/
 dist/
 
-# Context files (not for version control)
-.service-context.md
-
 # Logs
 *.log
 logs/
