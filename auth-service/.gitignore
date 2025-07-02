@@ -5,3 +5,25 @@ auth-service.exe
 # Local config files
 config-local.yaml
 .env.local
+
+# Security: Sensitive files
+*credentials*
+*_credentials*
+*-credentials*
+*.pem
+*.key
+*.crt
+keyPrincipal*
+*keyPrincipal*
+*-token*
+*-secret*
+*secret*
+*password*
+
+# AWS and SES credentials
+*aws-credentials*
+*ses-credentials*
+*smtp-credentials*
+
+# Context files (not for version control)
+.service-context.md

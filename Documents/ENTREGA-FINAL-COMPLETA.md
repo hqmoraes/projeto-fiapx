@@ -217,4 +217,3 @@ kubectl get hpa -n fiapx
 
 ---
 
-**🎯 PRÓXIMO PASSO: GRAVAR O VÍDEO DE 10 MINUTOS SEGUINDO O ROTEIRO**
