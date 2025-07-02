@@ -70,3 +70,4 @@ go build -o auth-service cmd/auth-service/main.go
 
 ## Kubernetes
 Os manifestos Kubernetes para este serviço estão em `infrastructure/kubernetes/auth-service/`.
+# teste direct push

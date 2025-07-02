@@ -34,68 +34,6 @@ go.work
 kubeconfig*.yaml
 !kubeconfig-template.yaml
 
-# Arquivos sensíveis e credenciais
-# ================================
-
-# Chaves SSH
-*.pem
-*.key
-id_rsa*
-id_ed25519*
-id_ecdsa*
-id_dsa*
-authorized_keys
-known_hosts
-
-# Configurações de Docker Hub e Registry
-.docker/config.json
-docker-config.json
-dockerhub-token.txt
-registry-credentials.json
-
-# Certificados SSL/TLS
-*.crt
-*.cert
-*.cer
-*.p12
-*.pfx
-*.jks
-*.keystore
-*.truststore
-
-# Arquivos de configuração com credenciais
-*-credentials.json
-*-credentials.yaml
-*-config-prod.json
-*-config-production.yaml
-secrets.json
-secrets.yaml
-credentials.env
-
-# Tokens e API Keys
-*-token.txt
-*-apikey.txt
-*-access-key.txt
-github-token.txt
-aws-credentials.txt
-jwt-secret.txt
-
-# Arquivos de backup com dados sensíveis
-*.sql.gz
-*.sql.bak
-backup-*.tar.gz
-database-backup-*
-
-# Logs que podem conter informações sensíveis
-*.log
-logs/
-/var/log/
-
-# Scripts temporários com credenciais
-setup-secrets.sh
-configure-credentials.sh
-deploy-prod.sh
-
 # Environment files
 .env
 .env.local
@@ -254,17 +192,3 @@ rabbitmq-data/
 
 # Frontend
 /frontend/
-
-# Arquivos de credenciais específicos encontrados
-temp/*credentials*.csv*
-temp/*credentials*.backup
-infrastructure/kubernetes/*/auth-secret.yaml
-!infrastructure/kubernetes/*/auth-secret-template.yaml
-
-
-# Arquivos de credenciais específicos encontrados
-temp/*credentials*.csv*
-temp/*credentials*.backup
-infrastructure/kubernetes/*/auth-secret.yaml
-!infrastructure/kubernetes/*/auth-secret-template.yaml
-

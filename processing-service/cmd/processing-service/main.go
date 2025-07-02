@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -19,28 +18,12 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/streadway/amqp"
 	"github.com/rs/cors"
-	"github.com/go-redis/redis/v8"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-// Notification message for email service
-type NotificationMessage struct {
-	UserID       int    `json:"user_id"`
-	UserEmail    string `json:"user_email"`
-	UserName     string `json:"user_name"`
-	VideoID      string `json:"video_id"`
-	VideoTitle   string `json:"video_title"`
-	Status       string `json:"status"`
-	ErrorMessage string `json:"error_message,omitempty"`
-	ProcessedAt  string `json:"processed_at"`
-	Type         string `json:"type"` // "success", "error", "warning"
-}
 
 type ProcessingService struct {
 	MinioClient *minio.Client
 	RabbitConn  *amqp.Connection
 	RabbitCh    *amqp.Channel
-	RedisClient *redis.Client
 }
 
 type ProcessingMessage struct {
@@ -61,26 +44,6 @@ type ProcessingResult struct {
 	Metadata      map[string]interface{} `json:"metadata"`
 	UserID        string                 `json:"user_id"`
 	Error         string                 `json:"error,omitempty"`
-}
-
-// Estruturas para APIs de fila
-type QueueStatus struct {
-	QueueLength     int                  `json:"queue_length"`
-	ProcessingCount int                  `json:"processing_count"`
-	VideosInQueue   []QueueVideoInfo     `json:"videos_in_queue"`
-}
-
-type QueueVideoInfo struct {
-	VideoID   string    `json:"video_id"`
-	Filename  string    `json:"filename"`
-	UserID    string    `json:"user_id"`
-	QueuedAt  time.Time `json:"queued_at"`
-	Position  int       `json:"position"`
-}
-
-type VideoQueuePosition struct {
-	Position          int `json:"position"`
-	EstimatedWaitTime int `json:"estimated_wait_time"` // em segundos
 }
 
 func NewProcessingService() (*ProcessingService, error) {
@@ -135,40 +98,10 @@ func NewProcessingService() (*ProcessingService, error) {
 		log.Printf("Bucket %s criado com sucesso", bucketName)
 	}
 
-	// Configurar Redis
-	var redisClient *redis.Client
-	redisHost := getEnv("REDIS_HOST", "redis")
-	redisPort := getEnv("REDIS_PORT", "6380")
-	redisDB := getEnv("REDIS_DB", "0")
-	
-	db, err := strconv.Atoi(redisDB)
-	if err != nil {
-		log.Printf("Erro ao converter REDIS_DB, usando padrão 0: %v", err)
-		db = 0
-	}
-	
-	redisClient = redis.NewClient(&redis.Options{
-		Addr:     redisHost + ":" + redisPort,
-		Password: "", // sem senha
-		DB:       db,
-	})
-	
-	// Testar conexão Redis
-	ctx := context.Background()
-	_, err = redisClient.Ping(ctx).Result()
-	if err != nil {
-		log.Printf("Aviso: Erro ao conectar com Redis: %v", err)
-		log.Printf("Continuando sem cache Redis...")
-		redisClient = nil
-	} else {
-		log.Printf("Redis conectado com sucesso em %s:%s DB:%d", redisHost, redisPort, db)
-	}
-
 	return &ProcessingService{
 		MinioClient: minioClient,
 		RabbitConn:  rabbitConn,
 		RabbitCh:    rabbitCh,
-		RedisClient: redisClient,
 	}, nil
 }
 
@@ -198,15 +131,6 @@ func (ps *ProcessingService) StartProcessingWorker() {
 		}
 
 		log.Printf("Processando vídeo: %s", processingMsg.VideoID)
-		
-		// Invalidar cache no início do processamento
-		if ps.RedisClient != nil {
-			err = ps.invalidateQueueCache()
-			if err != nil {
-				log.Printf("Erro ao invalidar cache no início: %v", err)
-			}
-		}
-		
 		result := ps.processVideo(processingMsg)
 
 		// Publicar resultado
@@ -234,17 +158,6 @@ func (ps *ProcessingService) StartProcessingWorker() {
 
 		msg.Ack(false)
 		log.Printf("Vídeo processado com sucesso: %s", processingMsg.VideoID)
-		
-		// Send email notification
-		ps.sendEmailNotification(processingMsg.VideoID, processingMsg.UserID, result.Status, result.Error)
-		
-		// Invalidar cache após processamento concluído
-		if ps.RedisClient != nil {
-			err = ps.invalidateQueueCache()
-			if err != nil {
-				log.Printf("Erro ao invalidar cache após processamento: %v", err)
-			}
-		}
 	}
 }
 
@@ -324,9 +237,6 @@ func (ps *ProcessingService) processVideo(msg ProcessingMessage) ProcessingResul
 	result.Metadata["original_filename"] = msg.Filename
 	result.Metadata["frame_count"] = frameCount
 	result.Metadata["zip_size"] = zipSize
-
-	// Enviar notificação por email
-	ps.sendEmailNotification(msg.VideoID, msg.UserID, result.Status, result.Error)
 
 	return result
 }
@@ -482,209 +392,6 @@ func (ps *ProcessingService) StatusHandler(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(status)
 }
 
-// Handler para obter status da fila
-func (ps *ProcessingService) QueueStatusHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	
-	// Tentar obter status do cache Redis
-	cachedStatus, err := ps.getCachedQueueStatus()
-	if err == nil && cachedStatus != nil {
-		// Retornar status do cache
-		json.NewEncoder(w).Encode(cachedStatus)
-		return
-	}
-
-	// Obter informações da fila RabbitMQ
-	queueInfo, err := ps.RabbitCh.QueueInspect("video_processing")
-	if err != nil {
-		log.Printf("Erro ao inspecionar fila: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Erro ao obter status da fila"})
-		return
-	}
-
-	// Contar pods/workers ativos (simulação baseada na fila)
-	processingCount := 0
-	if queueInfo.Messages > 0 {
-		// Estimar workers ativos baseado na carga
-		processingCount = min(queueInfo.Messages, 5) // Máximo 5 pods
-	}
-
-	status := QueueStatus{
-		QueueLength:     queueInfo.Messages,
-		ProcessingCount: processingCount,
-		VideosInQueue:   []QueueVideoInfo{}, // Em produção, obteria de BD
-	}
-
-	// Cachear status no Redis
-	err = ps.cacheQueueStatus(status)
-	if err != nil {
-		log.Printf("Erro ao cachear status da fila: %v", err)
-	}
-
-	json.NewEncoder(w).Encode(status)
-}
-
-// Handler para obter posição de um vídeo na fila
-func (ps *ProcessingService) VideoQueuePositionHandler(w http.ResponseWriter, r *http.Request) {
-	videoID := mux.Vars(r)["id"]
-	w.Header().Set("Content-Type", "application/json")
-	
-	// Tentar obter posição do cache Redis
-	cachedPosition, err := ps.getCachedVideoPosition(videoID)
-	if err == nil && cachedPosition != nil {
-		// Retornar posição do cache
-		json.NewEncoder(w).Encode(cachedPosition)
-		return
-	}
-
-	// Log para debug
-	log.Printf("Consultando posição na fila para vídeo: %s", videoID)
-	
-	// Em produção, consultaria banco de dados para posição real
-	// Por agora, simulamos baseado na fila
-	queueInfo, err := ps.RabbitCh.QueueInspect("video_processing")
-	if err != nil {
-		log.Printf("Erro ao inspecionar fila: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Erro ao obter posição na fila"})
-		return
-	}
-
-	// Simular posição (em produção seria obtida do BD)
-	position := 1
-	if queueInfo.Messages > 1 {
-		position = queueInfo.Messages / 2 // Estimativa
-	}
-
-	// Estimar tempo (assumindo 90 segundos por vídeo)
-	estimatedWaitTime := position * 90
-
-	result := VideoQueuePosition{
-		Position:          position,
-		EstimatedWaitTime: estimatedWaitTime,
-	}
-
-	// Cachear posição no Redis
-	err = ps.cacheVideoPosition(videoID, result)
-	if err != nil {
-		log.Printf("Erro ao cachear posição do vídeo %s: %v", videoID, err)
-	}
-
-	json.NewEncoder(w).Encode(result)
-}
-
-// Redis Cache Functions
-const (
-	CACHE_KEY_QUEUE_STATUS = "queue:status"
-	CACHE_KEY_VIDEO_POSITION = "queue:position:"
-	CACHE_TTL_QUEUE_STATUS = 10 * time.Second  // Cache por 10 segundos
-	CACHE_TTL_VIDEO_POSITION = 30 * time.Second // Cache por 30 segundos
-)
-
-// Cachear status da fila no Redis
-func (ps *ProcessingService) cacheQueueStatus(status QueueStatus) error {
-	if ps.RedisClient == nil {
-		return nil // Sem Redis configurado
-	}
-	
-	ctx := context.Background()
-	data, err := json.Marshal(status)
-	if err != nil {
-		return err
-	}
-	
-	return ps.RedisClient.Set(ctx, CACHE_KEY_QUEUE_STATUS, data, CACHE_TTL_QUEUE_STATUS).Err()
-}
-
-// Obter status da fila do cache Redis
-func (ps *ProcessingService) getCachedQueueStatus() (*QueueStatus, error) {
-	if ps.RedisClient == nil {
-		return nil, nil // Sem Redis configurado
-	}
-	
-	ctx := context.Background()
-	data, err := ps.RedisClient.Get(ctx, CACHE_KEY_QUEUE_STATUS).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return nil, nil // Cache miss
-		}
-		return nil, err
-	}
-	
-	var status QueueStatus
-	err = json.Unmarshal([]byte(data), &status)
-	if err != nil {
-		return nil, err
-	}
-	
-	return &status, nil
-}
-
-// Cachear posição do vídeo no Redis
-func (ps *ProcessingService) cacheVideoPosition(videoID string, position VideoQueuePosition) error {
-	ctx := context.Background()
-	data, err := json.Marshal(position)
-	if err != nil {
-		return err
-	}
-	
-	key := CACHE_KEY_VIDEO_POSITION + videoID
-	return ps.RedisClient.Set(ctx, key, data, CACHE_TTL_VIDEO_POSITION).Err()
-}
-
-// Obter posição do vídeo do cache Redis
-func (ps *ProcessingService) getCachedVideoPosition(videoID string) (*VideoQueuePosition, error) {
-	ctx := context.Background()
-	key := CACHE_KEY_VIDEO_POSITION + videoID
-	data, err := ps.RedisClient.Get(ctx, key).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return nil, nil // Cache miss
-		}
-		return nil, err
-	}
-	
-	var position VideoQueuePosition
-	err = json.Unmarshal([]byte(data), &position)
-	if err != nil {
-		return nil, err
-	}
-	
-	return &position, nil
-}
-
-// Invalidar cache quando houver mudanças na fila
-func (ps *ProcessingService) invalidateQueueCache() error {
-	if ps.RedisClient == nil {
-		return nil // Sem Redis configurado
-	}
-	
-	ctx := context.Background()
-	// Remover cache de status
-	ps.RedisClient.Del(ctx, CACHE_KEY_QUEUE_STATUS)
-	
-	// Remover todos os caches de posição (usando pattern)
-	keys, err := ps.RedisClient.Keys(ctx, CACHE_KEY_VIDEO_POSITION+"*").Result()
-	if err != nil {
-		return err
-	}
-	
-	if len(keys) > 0 {
-		ps.RedisClient.Del(ctx, keys...)
-	}
-	
-	return nil
-}
-
-// Função auxiliar para min
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -702,9 +409,6 @@ func main() {
 	}
 	defer processingService.RabbitConn.Close()
 	defer processingService.RabbitCh.Close()
-	if processingService.RedisClient != nil {
-		defer processingService.RedisClient.Close()
-	}
 
 	// Iniciar worker em goroutine
 	go processingService.StartProcessingWorker()
@@ -713,10 +417,6 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/health", processingService.HealthHandler).Methods("GET")
 	r.HandleFunc("/status/{id}", processingService.StatusHandler).Methods("GET")
-	r.HandleFunc("/queue/status", processingService.QueueStatusHandler).Methods("GET")
-	r.HandleFunc("/queue/position/{id}", processingService.VideoQueuePositionHandler).Methods("GET")
-	// Expor métricas Prometheus
-	r.Handle("/metrics", promhttp.Handler()).Methods("GET")
 
 	// Configurar CORS
 	c := cors.New(cors.Options{
@@ -733,81 +433,4 @@ func main() {
 	port := getEnv("PORT", "8080")
 	log.Printf("Processing Service iniciado na porta %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, handler))
-}
-
-// Send email notification for video processing status
-func (ps *ProcessingService) sendEmailNotification(videoID, userID, status, errorMsg string) {
-	// Get user information (mock for now - should integrate with auth-service)
-	userEmail := getUserEmail(userID)
-	userName := getUserName(userID)
-	
-	if userEmail == "" {
-		log.Printf("No email found for user %s, skipping notification", userID)
-		return
-	}
-
-	notification := NotificationMessage{
-		UserID:       parseInt(userID),
-		UserEmail:    userEmail,
-		UserName:     userName,
-		VideoID:      videoID,
-		VideoTitle:   fmt.Sprintf("Video %s", videoID), // Should get real title
-		Status:       status,
-		ErrorMessage: errorMsg,
-		ProcessedAt:  time.Now().Format("2006-01-02 15:04:05"),
-		Type:         getNotificationType(status),
-	}
-
-	notificationBytes, err := json.Marshal(notification)
-	if err != nil {
-		log.Printf("Error marshaling notification: %v", err)
-		return
-	}
-
-	// Send to notifications queue
-	err = ps.RabbitCh.Publish(
-		"",             // exchange
-		"notifications", // routing key
-		false,          // mandatory
-		false,          // immediate
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        notificationBytes,
-		})
-	if err != nil {
-		log.Printf("Error publishing notification: %v", err)
-		return
-	}
-
-	log.Printf("Email notification sent for video %s (status: %s) to %s", videoID, status, userEmail)
-}
-
-// Helper functions for user data (should integrate with auth-service)
-func getUserEmail(userID string) string {
-	// Mock implementation - in production, call auth-service API
-	// Example: GET /auth/users/{userID}
-	return getEnv("DEFAULT_USER_EMAIL", "user@fiapx.wecando.click")
-}
-
-func getUserName(userID string) string {
-	// Mock implementation - in production, call auth-service API
-	return getEnv("DEFAULT_USER_NAME", "FIAP-X User")
-}
-
-func getNotificationType(status string) string {
-	switch status {
-	case "completed":
-		return "success"
-	case "failed", "error":
-		return "error"
-	case "processing":
-		return "info"
-	default:
-		return "info"
-	}
-}
-
-func parseInt(s string) int {
-	i, _ := strconv.Atoi(s)
-	return i
 }
