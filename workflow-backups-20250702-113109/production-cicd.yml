@@ -1,0 +1,450 @@
+name: Production CI/CD Pipeline
+
+on:
+  # Trigger em PRs para main (validação)
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
+  
+  # Trigger em push para validar (desenvolvimento) e main (produção)
+  push:
+    branches: [ validar, main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+  
+  # Trigger manual para emergências
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      skip_tests:
+        description: 'Skip tests (emergency only)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  GO_VERSION: '1.21'
+  DOCKER_REGISTRY: hmoraes
+  PROJECT_NAME: fiapx
+  NODE_VERSION: '18'
+
+# Configuração de permissões mínimas (princípio do menor privilégio)
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+  security-events: write
+  id-token: write
+
+jobs:
+  # ==========================================
+  # STAGE 1: VALIDATION & SECURITY
+  # ==========================================
+  
+  code-quality:
+    name: 🔍 Code Quality & Security
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better analysis
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+    
+    # Security: Verificar se não há secrets hardcoded
+    - name: 🔒 Scan for secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: ${{ github.event.repository.default_branch }}
+        head: HEAD
+        extra_args: --debug --only-verified
+    
+    # Security: Verificar vulnerabilidades Go
+    - name: 🛡️ Go Security Scan
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-fmt sarif -out gosec.sarif ./...'
+    
+    - name: Upload Security Scan Results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: gosec.sarif
+    
+    # Code Quality: Go lint
+    - name: 📝 Go Lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: latest
+        args: --timeout=5m
+    
+    # Dependency Check
+    - name: 🔍 Dependency Check
+      run: |
+        go mod verify
+        go mod tidy
+        if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
+          echo "❌ go.mod or go.sum needs updates"
+          git diff go.mod go.sum
+          exit 1
+        fi
+
+  # ==========================================
+  # STAGE 2: TESTING
+  # ==========================================
+  
+  test:
+    name: 🧪 Comprehensive Testing
+    runs-on: ubuntu-latest
+    needs: code-quality
+    if: github.event.inputs.skip_tests != 'true'
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: fiapx_test
+          POSTGRES_PASSWORD: test_password_secure_123
+          POSTGRES_DB: fiapx_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: fiapx_test
+          RABBITMQ_DEFAULT_PASS: test_password_123
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 30s
+          --health-timeout 30s
+          --health-retries 3
+    
+    strategy:
+      matrix:
+        service: [auth-service, upload-service, processing-service, storage-service, notification-service]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+    
+    - name: 🔧 Setup test environment
+      run: |
+        # Aguardar serviços ficarem prontos
+        timeout 60s bash -c 'until pg_isready -h localhost -p 5432 -U fiapx_test; do sleep 1; done'
+        timeout 60s bash -c 'until redis-cli -h localhost -p 6379 ping | grep PONG; do sleep 1; done'
+        
+        # Configurar banco de teste
+        PGPASSWORD=test_password_secure_123 psql -h localhost -U fiapx_test -d fiapx_test -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+    
+    - name: 🧪 Run Unit Tests - ${{ matrix.service }}
+      working-directory: ./${{ matrix.service }}
+      run: |
+        if [ -f "go.mod" ]; then
+          go mod download
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        else
+          echo "⚠️  No go.mod found for ${{ matrix.service }}, skipping..."
+        fi
+      env:
+        DATABASE_URL: postgres://fiapx_test:test_password_secure_123@localhost:5432/fiapx_test?sslmode=disable
+        REDIS_URL: redis://localhost:6379
+        RABBITMQ_URL: amqp://fiapx_test:test_password_123@localhost:5672/
+        JWT_SECRET: ${{ secrets.JWT_SECRET || 'test-jwt-secret-for-ci' }}
+    
+    - name: 📊 Upload Coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./${{ matrix.service }}/coverage.out
+        flags: ${{ matrix.service }}
+        name: ${{ matrix.service }}-coverage
+        fail_ci_if_error: false
+  
+  # ==========================================
+  # STAGE 3: INTEGRATION TESTS
+  # ==========================================
+  
+  integration-test:
+    name: 🔗 Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/validar'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: 🐳 Build test images
+      run: |
+        docker-compose -f docker-compose.test.yml build
+    
+    - name: 🧪 Run integration tests
+      run: |
+        docker-compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from test-runner
+      env:
+        JWT_SECRET: test-integration-secret
+  
+  # ==========================================
+  # STAGE 4: BUILD & PUSH (apenas main e validar)
+  # ==========================================
+  
+  build:
+    name: 🏗️ Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [code-quality, test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/validar'
+    
+    strategy:
+      matrix:
+        service: [auth-service, upload-service, processing-service, storage-service, notification-service]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: 🔐 Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: 🏷️ Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}-${{ matrix.service }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+    
+    - name: 🏗️ Build and push ${{ matrix.service }}
+      uses: docker/build-push-action@v5
+      with:
+        context: ./${{ matrix.service }}
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          VERSION=${{ github.sha }}
+          BUILD_DATE=${{ github.event.head_commit.timestamp }}
+  
+  # ==========================================
+  # STAGE 5: STAGING DEPLOYMENT (branch validar)
+  # ==========================================
+  
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, integration-test]
+    if: github.ref == 'refs/heads/validar'
+    environment: 
+      name: staging
+      url: https://staging.fiapx.wecando.click
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: 🔐 Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+        kubectl config set-context --current --namespace=fiapx-staging
+    
+    - name: 🚀 Deploy to staging
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Substituir imagens nos manifests para staging
+        for service in auth-service upload-service processing-service storage-service notification-service; do
+          if [ -f "infrastructure/kubernetes/${service}.yaml" ]; then
+            sed "s|image: .*/${service}:.*|image: ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}-${service}:validar-${{ github.sha }}|g" \
+              infrastructure/kubernetes/${service}.yaml | \
+              kubectl apply -f -
+          fi
+        done
+        
+        # Aguardar rollout
+        for service in auth-service upload-service processing-service storage-service notification-service; do
+          kubectl rollout status deployment/${service} --timeout=300s || true
+        done
+    
+    - name: 🔍 Health check staging
+      run: |
+        sleep 30
+        # Verificar se todos os pods estão rodando
+        kubectl get pods -l environment=staging
+        
+        # Health check básico (se houver endpoint)
+        # curl -f https://staging.fiapx.wecando.click/health || echo "Health check failed"
+  
+  # ==========================================
+  # STAGE 6: PRODUCTION DEPLOYMENT (apenas main)
+  # ==========================================
+  
+  deploy-production:
+    name: 🌟 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, integration-test]
+    if: github.ref == 'refs/heads/main'
+    environment: 
+      name: production
+      url: https://fiapx.wecando.click
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: 🔐 Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+        kubectl config set-context --current --namespace=fiapx-production
+    
+    - name: 🌟 Deploy to production
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Blue-Green deployment para produção
+        for service in auth-service upload-service processing-service storage-service notification-service; do
+          if [ -f "infrastructure/kubernetes/${service}.yaml" ]; then
+            # Backup da versão atual
+            kubectl get deployment ${service} -o yaml > ${service}-backup.yaml || true
+            
+            # Deploy nova versão
+            sed "s|image: .*/${service}:.*|image: ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}-${service}:main-${{ github.sha }}|g" \
+              infrastructure/kubernetes/${service}.yaml | \
+              kubectl apply -f -
+            
+            # Aguardar rollout com timeout
+            if ! kubectl rollout status deployment/${service} --timeout=600s; then
+              echo "❌ Rollout failed for ${service}, rolling back..."
+              kubectl rollout undo deployment/${service}
+              exit 1
+            fi
+          fi
+        done
+    
+    - name: 🔍 Production health check
+      run: |
+        sleep 60
+        
+        # Verificar pods
+        kubectl get pods -l environment=production
+        
+        # Health check completo
+        for i in {1..5}; do
+          if curl -f --max-time 30 https://fiapx.wecando.click/health; then
+            echo "✅ Health check passed"
+            break
+          else
+            echo "⚠️  Health check attempt $i failed, retrying..."
+            sleep 30
+          fi
+          
+          if [ $i -eq 5 ]; then
+            echo "❌ Health check failed after 5 attempts"
+            exit 1
+          fi
+        done
+    
+    - name: 📊 Post-deployment verification
+      run: |
+        export KUBECONFIG=kubeconfig
+        
+        # Verificar que todos os serviços estão funcionando
+        kubectl get all -l app.kubernetes.io/name=fiapx
+        
+        # Logs de deployment
+        for service in auth-service upload-service processing-service storage-service notification-service; do
+          echo "=== Logs for ${service} ==="
+          kubectl logs -l app=${service} --tail=10 || true
+        done
+
+  # ==========================================
+  # STAGE 7: NOTIFICATION & CLEANUP
+  # ==========================================
+  
+  notify:
+    name: 📣 Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always() && (needs.deploy-staging.result != 'skipped' || needs.deploy-production.result != 'skipped')
+    
+    steps:
+    - name: 📧 Notify success
+      if: needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success'
+      run: |
+        ENV="staging"
+        if [ "${{ needs.deploy-production.result }}" == "success" ]; then
+          ENV="production"
+        fi
+        
+        echo "✅ Deployment successful to $ENV!"
+        echo "📊 Commit: ${{ github.sha }}"
+        echo "👤 Author: ${{ github.actor }}"
+        echo "🔗 URL: https://${ENV}.fiapx.wecando.click"
+        
+        # Aqui você pode adicionar notificação via Slack, Discord, email, etc.
+    
+    - name: 🚨 Notify failure
+      if: needs.deploy-staging.result == 'failure' || needs.deploy-production.result == 'failure'
+      run: |
+        echo "❌ Deployment failed!"
+        echo "📊 Commit: ${{ github.sha }}"
+        echo "👤 Author: ${{ github.actor }}"
+        echo "🔍 Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        
+        # Aqui você pode adicionar alertas críticos
