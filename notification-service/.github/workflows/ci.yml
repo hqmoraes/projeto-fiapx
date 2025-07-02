@@ -2,21 +2,13 @@ name: Notification Service CI/CD
 
 on:
   push:
-    branches: [ main, develop ]
-    paths:
-      - 'notification-service/**'
+    branches: [ main, validar, develop ]
   pull_request:
     branches: [ main ]
-    paths:
-      - 'notification-service/**'
-
-defaults:
-  run:
-    working-directory: ./notification-service
 
 env:
   GO_VERSION: '1.21'
-  DOCKER_IMAGE: hmoraes/notification-service
+  DOCKER_IMAGE: hmoraes/fiapx-notification-service
 
 jobs:
   test:
@@ -38,7 +30,7 @@ jobs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('notification-service/go.sum') }}
+        key: ${{ runner.os }}-go-${{ hashFiles('go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-
 
@@ -51,7 +43,7 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
-        file: ./notification-service/coverage.out
+        file: ./coverage.out
         flags: notification-service
 
   lint:
@@ -71,7 +63,6 @@ jobs:
       uses: golangci/golangci-lint-action@v3
       with:
         version: latest
-        working-directory: notification-service
         args: --timeout=10m
 
   security:
@@ -88,14 +79,27 @@ jobs:
         go-version: ${{ env.GO_VERSION }}
 
     - name: Run Gosec Security Scanner
-      uses: securecodewarrior/github-action-gosec@master
+      uses: cosmos/gosec@master
       with:
-        args: '-no-fail -fmt sarif -out gosec-results.sarif ./notification-service/...'
+        args: '-no-fail -fmt sarif -out gosec-results.sarif ./...'
 
     - name: Upload SARIF file
       uses: github/codeql-action/upload-sarif@v2
       with:
         sarif_file: gosec-results.sarif
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
 
   build:
     name: Build and Push Docker Image
@@ -113,8 +117,8 @@ jobs:
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Extract metadata
       id: meta
@@ -130,7 +134,7 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: ./notification-service
+        context: .
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -138,29 +142,22 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-  deploy:
-    name: Deploy to Kubernetes
+  security-check:
+    name: Additional Security Checks
     runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main'
-    environment: production
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Configure kubectl
-      uses: azure/k8s-set-context@v3
+      
+    - name: Run hadolint (Dockerfile linter)
+      uses: hadolint/hadolint-action@v3.1.0
       with:
-        method: kubeconfig
-        kubeconfig: ${{ secrets.KUBE_CONFIG }}
-
-    - name: Deploy to Kubernetes
-      run: |
-        kubectl apply -f ../infrastructure/kubernetes/notification-service.yaml
-        kubectl rollout status deployment/notification-service -n fiapx --timeout=300s
-
-    - name: Verify deployment
-      run: |
-        kubectl get pods -l app=notification-service -n fiapx
-        kubectl get service notification-service -n fiapx
+        dockerfile: Dockerfile
+        
+    - name: Check for secrets in code
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD

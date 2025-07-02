@@ -152,9 +152,6 @@ Este script automaticamente:
 
 ### Produção
 - **Sistema Principal**: https://fiapx.wecando.click
-- **API Gateway**: https://fiapx.wecando.click/api
-- **Grafana**: https://fiapx.wecando.click/grafana
-- **Prometheus**: https://fiapx.wecando.click/prometheus
 
 ### Desenvolvimento Local
 - API Gateway: http://localhost:8080
@@ -241,53 +238,8 @@ kubectl exec -it deployment/notification-service -n fiapx -- /bin/sh -c \
   "SEND_TEST_EMAIL=true TEST_EMAIL=your@email.com ./notification-service"
 ```
 
-### Status do Sistema
-- **🟢 Operacional**: Todos os serviços funcionando
-- **🟡 Degradado**: Alguns serviços com problemas
-- **🔴 Indisponível**: Sistema fora do ar
-
-## 🎯 Requisitos Atendidos
-
-### Funcionais
-- ✅ Processamento paralelo de múltiplos vídeos
-- ✅ Sistema não perde requisições em picos de carga
-- ✅ Autenticação segura com usuário e senha
-- ✅ Listagem completa de vídeos e status
-- ✅ Sistema de notificação por email para erros
-- ✅ Upload múltiplo de arquivos
-- ✅ Download de frames processados
-
-### Técnicos
-- ✅ Dados persistidos em PostgreSQL + MinIO
-- ✅ Arquitetura escalável com Kubernetes
-- ✅ Código versionado no GitHub
-- ✅ Testes automatizados (cobertura > 85%)
-- ✅ CI/CD pipeline completo
-- ✅ HTTPS em produção com domínio personalizado
-- ✅ Observabilidade com Prometheus + Grafana
-- ✅ Auto-scaling baseado em métricas
-
-## 🏆 Qualidade e Performance
-
-- **📊 Cobertura de Testes**: 85.8%
-- **⚡ Response Time**: < 200ms (95th percentile)
-- **🔄 Availability**: 99.9% uptime
-- **📈 Scalability**: Auto-scaling 1-5 replicas
-- **🔒 Security**: SSL/TLS + JWT + RBAC
-
-## 📅 Status do Projeto
-
-**✅ PRODUÇÃO - TOTALMENTE OPERACIONAL**
-- Sistema rodando em produção na AWS
-- Domínio personalizado com HTTPS ativo
-- Notificações por email funcionando
-- Observabilidade completa implementada
-- Todos os requisitos funcionais e técnicos atendidos
-
----
-
 ## 📄 Licença
 
 Este projeto está licenciado sob a licença MIT - veja o arquivo LICENSE para detalhes.
 
-**🎬 FIAP-X - Transformando vídeos com tecnologia de ponta!**
+
