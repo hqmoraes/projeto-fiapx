@@ -16,3 +16,5 @@ kubeconfig*
 
 # Context files (not for version control)
 .service-context.md
+
+node_modules/
