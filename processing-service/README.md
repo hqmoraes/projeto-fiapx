@@ -1,3 +1,24 @@
+# Serviço de Processamento
+
+O `processing-service` é o coração da plataforma FIAP-X. Ele é responsável por processar os vídeos enviados pelos usuários, utilizando a biblioteca FFmpeg para realizar a transcodificação e outras operações.
+
+## Funcionalidades
+
+- **Processamento de Vídeo**: Utiliza FFmpeg para converter e processar vídeos.
+- **Consumo de Fila**: Obtém os vídeos a serem processados de uma fila do RabbitMQ.
+- **Escalabilidade**: Pode ser escalado horizontalmente para lidar com grandes volumes de processamento.
+- **Notificação de Status**: Publica mensagens na fila sobre o andamento do processamento.
+
+## Execução
+
+Para executar o Serviço de Processamento localmente, utilize o Docker Compose:
+
+```bash
+docker-compose up -d processing-service
+```
+
+No ambiente de produção, o deploy é gerenciado pelo workflow de CI/CD do Kubernetes.
+
 # ⚙️ Processing Service - FIAP-X
 
 ## 📋 Descrição

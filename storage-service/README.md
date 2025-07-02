@@ -1,3 +1,24 @@
+# Serviço de Armazenamento
+
+O `storage-service` gerencia o armazenamento e o acesso aos arquivos de vídeo da plataforma. Ele utiliza o MinIO, um servidor de armazenamento de objetos compatível com a API do Amazon S3.
+
+## Funcionalidades
+
+- **Armazenamento de Objetos**: Guarda os vídeos originais e os processados em buckets.
+- **API Compatível com S3**: Facilita a integração com outras ferramentas e serviços.
+- **Segurança**: Gerencia as políticas de acesso aos arquivos.
+- **Escalabilidade**: Pode ser configurado em modo distribuído para alta disponibilidade.
+
+## Execução
+
+Para executar o Serviço de Armazenamento localmente, utilize o Docker Compose:
+
+```bash
+docker-compose up -d storage-service
+```
+
+No ambiente de produção, o deploy é gerenciado pelo workflow de CI/CD do Kubernetes.
+
 # Storage Service
 
 ## Descrição

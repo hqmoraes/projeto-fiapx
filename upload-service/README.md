@@ -1,3 +1,23 @@
+# Serviço de Upload
+
+O `upload-service` é responsável por receber os vídeos enviados pelos usuários, validá-los e colocá-los na fila para processamento.
+
+## Funcionalidades
+
+- **Recebimento de Arquivos**: Endpoint para o upload de vídeos.
+- **Validação de Arquivos**: Verifica o formato e o tamanho dos vídeos enviados.
+- **Publicação em Fila**: Envia uma mensagem para o RabbitMQ com as informações do vídeo a ser processado.
+
+## Execução
+
+Para executar o Serviço de Upload localmente, utilize o Docker Compose:
+
+```bash
+docker-compose up -d upload-service
+```
+
+No ambiente de produção, o deploy é gerenciado pelo workflow de CI/CD do Kubernetes.
+
 # 📤 Upload Service - FIAP-X
 
 ## 📋 Descrição
