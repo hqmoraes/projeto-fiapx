@@ -1,0 +1,457 @@
+<mxfile host="app.diagrams.net" modified="2025-01-02T12:00:00.000Z" agent="5.0" etag="complete-arch" version="24.6.4" type="device">
+  <diagram name="FIAP-X Complete Architecture" id="fiapx-complete-arch">
+    <mxGraphModel dx="3800" dy="3200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3200" pageHeight="3200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Background -->
+        <mxCell id="bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f9fa;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="3160" height="3160" as="geometry" />
+        </mxCell>
+        
+        <!-- Title -->
+        <mxCell id="title" value="FIAP-X Video Processing Platform - Complete Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=32;fontStyle=1;fontColor=#1565C0;" vertex="1" parent="1">
+          <mxGeometry x="400" y="60" width="2400" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Production URLs -->
+        <mxCell id="urls" value="🌐 PRODUCTION ENVIRONMENT&#xa;Frontend: https://fiapx.wecando.click&#xa;API: https://api.wecando.click&#xa;SSL: Let's Encrypt Auto-renewal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E8;strokeColor=#2E7D32;fontSize=16;fontStyle=1;align=left;verticalAlign=top;spacingLeft=20;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="60" y="180" width="400" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- FEATURES BOX -->
+        <mxCell id="features" value="🔑 KEY FEATURES&#xa;&#xa;✅ HTTPS/SSL Auto&#xa;✅ Microservices&#xa;✅ Event-Driven&#xa;✅ Real-time Queue&#xa;✅ Auto-scaling&#xa;✅ 100MB Upload&#xa;✅ ARM64 Optimized&#xa;✅ H.264/H.265 Support&#xa;✅ Auto Notification&#xa;✅ Kubernetes Ready" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E8;strokeColor=#2E7D32;fontSize=14;align=left;verticalAlign=top;spacingLeft=20;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="520" y="180" width="320" height="280" as="geometry" />
+        </mxCell>
+
+        <!-- TECH STACK -->
+        <mxCell id="tech-stack" value="🛠️ TECH STACK&#xa;&#xa;• Frontend: HTML5/CSS3/JS&#xa;• Backend: Go (Golang)&#xa;• Database: PostgreSQL&#xa;• Cache: Redis&#xa;• Queue: RabbitMQ&#xa;• Storage: MinIO&#xa;• Container: Docker/K8s&#xa;• Cloud: AWS EC2 ARM64&#xa;• SSL: Let's Encrypt&#xa;• Reverse Proxy: Nginx&#xa;• Monitoring: Prometheus/Grafana&#xa;• Email: Amazon SES" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=14;align=left;verticalAlign=top;spacingLeft=20;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="900" y="180" width="340" height="280" as="geometry" />
+        </mxCell>
+
+        <!-- ENDPOINTS -->
+        <mxCell id="endpoints" value="🌐 ENDPOINTS&#xa;&#xa;Frontend:&#xa;https://fiapx.wecando.click&#xa;&#xa;API Base:&#xa;https://api.wecando.click&#xa;&#xa;Routes:&#xa;• /auth - Authentication&#xa;• /upload - File Upload&#xa;• /processing - Queue Status&#xa;• /storage - File Management&#xa;&#xa;Upload Limit: 100MB&#xa;Formats: MP4, AVI, MOV" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#F57C00;fontSize=14;align=left;verticalAlign=top;spacingLeft=20;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="180" width="340" height="280" as="geometry" />
+        </mxCell>
+
+        <!-- WORKFLOW -->
+        <mxCell id="workflow" value="WORKFLOW&#xa;&#xa;1. User uploads video&#xa;2. Auth validates request&#xa;3. File stored in MinIO&#xa;4. Processing queued&#xa;5. Video compressed&#xa;6. Notification sent&#xa;7. Download available&#xa;&#xa;Queue: Event-driven&#xa;Status: Real-time&#xa;Retry: Automatic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#7B1FA2;fontSize=14;align=left;verticalAlign=top;spacingLeft=20;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="1700" y="180" width="340" height="280" as="geometry" />
+        </mxCell>
+
+        <!-- SECURITY -->
+        <mxCell id="security" value="SECURITY&#xa;&#xa;• JWT Authentication&#xa;• HTTPS/TLS 1.3&#xa;• Auto SSL Renewal&#xa;• CORS Protection&#xa;• Rate Limiting&#xa;• Input Validation&#xa;• Secure Headers&#xa;• Container Security&#xa;• Secret Management&#xa;• Access Control" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#AD1457;fontSize=14;align=left;verticalAlign=top;spacingLeft=20;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="2100" y="180" width="340" height="280" as="geometry" />
+        </mxCell>
+
+        <!-- SCALABILITY -->
+        <mxCell id="scalability" value="SCALABILITY&#xa;&#xa;• Horizontal Scaling&#xa;• Load Balancing&#xa;• Auto-scaling Pods&#xa;• Resource Limits&#xa;• Connection Pooling&#xa;• Stateless Design&#xa;• Cache Strategy&#xa;• CDN Ready&#xa;• Multi-region Ready&#xa;• ARM64 Optimized" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F8E9;strokeColor=#33691E;fontSize=14;align=left;verticalAlign=top;spacingLeft=20;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="2500" y="180" width="340" height="280" as="geometry" />
+        </mxCell>
+
+        <!-- USER LAYER -->
+        <mxCell id="user-layer" value="👤 USER LAYER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=20;fontStyle=1;verticalAlign=top;spacingTop=25;" vertex="1" parent="1">
+          <mxGeometry x="60" y="520" width="3100" height="180" as="geometry" />
+        </mxCell>
+
+        
+        <!-- User -->
+        <mxCell id="user" value="👨‍💻 End User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#1976D2;strokeColor=#0D47A1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="570" width="100" height="120" as="geometry" />
+        </mxCell>
+        
+        <!-- Browser -->
+        <mxCell id="browser" value="🌐 Web Browser&#xa;Chrome, Firefox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="450" y="580" width="220" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- FRONTEND LAYER -->
+        <mxCell id="frontend-layer" value="🎨 FRONTEND LAYER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#F57C00;fontSize=20;fontStyle=1;verticalAlign=top;spacingTop=25;" vertex="1" parent="1">
+          <mxGeometry x="60" y="740" width="3100" height="180" as="geometry" />
+        </mxCell>
+        
+        <!-- Frontend App -->
+        <mxCell id="frontend" value="🎯 Frontend App&#xa;HTML5 + CSS3 + JS&#xa;https://fiapx.wecando.click" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#F57C00;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="790" width="300" height="110" as="geometry" />
+        </mxCell>
+        
+        <!-- Nginx -->
+        <mxCell id="nginx" value="🔧 Nginx Ingress&#xa;SSL + Load Balancer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCC80;strokeColor=#F57C00;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="790" width="260" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- API GATEWAY -->
+        <mxCell id="gateway-layer" value="🌐 API GATEWAY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#7B1FA2;fontSize=20;fontStyle=1;verticalAlign=top;spacingTop=25;" vertex="1" parent="1">
+          <mxGeometry x="60" y="960" width="3100" height="150" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="api-gateway" value="🔗 API Gateway&#xa;https://api.wecando.click" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1BEE7;strokeColor=#7B1FA2;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="800" y="1010" width="500" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- MICROSERVICES -->
+        <mxCell id="services-layer" value="⚙️ MICROSERVICES LAYER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E8;strokeColor=#2E7D32;fontSize=20;fontStyle=1;verticalAlign=top;spacingTop=25;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1150" width="2100" height="240" as="geometry" />
+        </mxCell>
+        
+        <!-- Services -->
+        <mxCell id="auth-service" value="🔐 Auth Service&#xa;Port: 8082" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="150" y="1210" width="220" height="120" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="upload-service" value="Upload Service&#xa;Port: 8080" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="420" y="1210" width="220" height="120" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="processing-service" value="⚙️ Processing&#xa;Port: 8080" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="690" y="1210" width="220" height="120" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="storage-service" value="Storage&#xa;Port: 8080" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="960" y="1210" width="220" height="120" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="notification-service" value="📧 Notification&#xa;Background" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C8E6C9;strokeColor=#2E7D32;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="1230" y="1210" width="220" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- MESSAGE LAYER -->
+        <mxCell id="message-layer" value="📨 MESSAGE QUEUE LAYER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8E1;strokeColor=#FF8F00;fontSize=20;fontStyle=1;verticalAlign=top;spacingTop=25;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1430" width="2100" height="180" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="rabbitmq" value="🐰 RabbitMQ&#xa;Message Broker" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFECB3;strokeColor=#FF8F00;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="400" y="1490" width="280" height="100" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="redis" value="⚡ Redis Cache&#xa;Port: 6380" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFECB3;strokeColor=#FF8F00;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="750" y="1490" width="280" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- DATA LAYER -->
+        <mxCell id="data-layer" value="DATA LAYER" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#C62828;fontSize=20;fontStyle=1;verticalAlign=top;spacingTop=25;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1650" width="2100" height="180" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="postgresql" value="🐘 PostgreSQL&#xa;Database" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="350" y="1710" width="280" height="100" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="minio" value="📦 MinIO&#xa;Object Storage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFCDD2;strokeColor=#C62828;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="700" y="1710" width="280" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- INFRASTRUCTURE -->
+        <mxCell id="infra-layer" value="☁️ INFRASTRUCTURE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=20;fontStyle=1;verticalAlign=top;spacingTop=25;" vertex="1" parent="1">
+          <mxGeometry x="2220" y="1150" width="940" height="680" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="kubernetes" value="☸️ Kubernetes&#xa;Orchestration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="2300" y="1210" width="240" height="100" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="docker" value="🐳 Docker Hub&#xa;Registry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="2600" y="1210" width="240" height="100" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="aws" value="☁️ AWS EC2&#xa;ARM64" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1565C0;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="2900" y="1210" width="240" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- MONITORING -->
+        <mxCell id="monitoring" value="MONITORING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F8E9;strokeColor=#33691E;fontSize=18;fontStyle=1;verticalAlign=top;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="2300" y="1360" width="600" height="150" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="prometheus" value="Prometheus" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="2350" y="1410" width="220" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="grafana" value="Grafana" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEDC8;strokeColor=#33691E;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="2630" y="1410" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- EXTERNAL -->
+        <mxCell id="external" value="🌍 EXTERNAL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#AD1457;fontSize=18;fontStyle=1;verticalAlign=top;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="2300" y="1560" width="600" height="150" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="letsencrypt" value="Let's Encrypt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8BBD9;strokeColor=#AD1457;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="2350" y="1610" width="220" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="ses" value="📧 Amazon SES" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8BBD9;strokeColor=#AD1457;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="2630" y="1610" width="220" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- BUSINESS FLOW SECTION -->
+        <mxCell id="flow-title" value="BUSINESS FLOW &amp; REQUEST PROCESSING" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1;fontColor=#1565C0;" vertex="1" parent="1">
+          <mxGeometry x="400" y="1900" width="2400" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- UPLOAD FLOW -->
+        <mxCell id="upload-flow-layer" value="VIDEO UPLOAD FLOW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E8;strokeColor=#2E7D32;fontSize=18;fontStyle=1;verticalAlign=top;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1980" width="1500" height="400" as="geometry" />
+        </mxCell>
+
+        <!-- Flow Start -->
+        <mxCell id="flow-start" value="🚀 START&#xa;User Request" style="ellipse;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontSize=14;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="150" y="2020" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Auth Check -->
+        <mxCell id="flow-auth" value="🔐 Authentication&#xa;JWT Validation" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFC107;strokeColor=#FF8F00;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="2020" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- File Validation -->
+        <mxCell id="flow-file-check" value="File Validation&#xa;• Size ≤ 100MB&#xa;• Format: MP4/AVI/MOV&#xa;• Content Check" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FF9800;strokeColor=#F57C00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="520" y="2010" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Storage -->
+        <mxCell id="flow-storage" value="Store File&#xa;MinIO Storage&#xa;Generate UUID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2196F3;strokeColor=#1565C0;fontSize=12;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="740" y="2030" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Queue Processing -->
+        <mxCell id="flow-queue" value="📨 Queue Job&#xa;RabbitMQ&#xa;Processing Task" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#7B1FA2;fontSize=12;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="920" y="2030" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Processing -->
+        <mxCell id="flow-processing" value="⚙️ Video Processing&#xa;• Compression&#xa;• Format Convert&#xa;• Quality Check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#607D8B;strokeColor=#455A64;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="2020" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Notification -->
+        <mxCell id="flow-notification" value="📧 Send Notification&#xa;Email via SES&#xa;Processing Complete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E91E63;strokeColor=#AD1457;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="2030" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Error Flows -->
+        <mxCell id="flow-auth-error" value="❌ Auth Failed&#xa;Return 401&#xa;Unauthorized" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F44336;strokeColor=#D32F2F;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="320" y="2150" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="flow-file-error" value="❌ File Invalid&#xa;Return 400&#xa;Bad Request" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F44336;strokeColor=#D32F2F;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="540" y="2150" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="flow-process-error" value="❌ Processing Failed&#xa;Retry Logic&#xa;Max 3 Attempts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF5722;strokeColor=#D84315;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="2150" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Success End -->
+        <mxCell id="flow-success" value="✅ SUCCESS&#xa;File Ready&#xa;Download Link" style="ellipse;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontSize=12;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="2270" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- STATUS CHECK FLOW -->
+        <mxCell id="status-flow-layer" value="STATUS CHECK FLOW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;fontSize=18;fontStyle=1;verticalAlign=top;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="1620" y="1980" width="800" height="400" as="geometry" />
+        </mxCell>
+
+        <!-- Status Start -->
+        <mxCell id="status-start" value="🔍 Status Request&#xa;/processing/{id}" style="ellipse;whiteSpace=wrap;html=1;fillColor=#2196F3;strokeColor=#1565C0;fontSize=12;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="1700" y="2020" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Redis Check -->
+        <mxCell id="status-redis" value="⚡ Check Redis&#xa;Cache Status" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FF9800;strokeColor=#F57C00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1880" y="2020" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- DB Check -->
+        <mxCell id="status-db" value="🐘 Check DB&#xa;PostgreSQL&#xa;Job Status" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9C27B0;strokeColor=#7B1FA2;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="2080" y="2030" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Status Response -->
+        <mxCell id="status-response" value="Return Status&#xa;• PENDING&#xa;• PROCESSING&#xa;• COMPLETED&#xa;• FAILED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="2260" y="2020" width="120" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Cache Update -->
+        <mxCell id="status-cache-update" value="⚡ Update Cache&#xa;Store for 5min" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FF9800;strokeColor=#F57C00;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="1880" y="2150" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- DOWNLOAD FLOW -->
+        <mxCell id="download-flow-layer" value="DOWNLOAD FLOW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#F57C00;fontSize=18;fontStyle=1;verticalAlign=top;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="2480" y="1980" width="680" height="400" as="geometry" />
+        </mxCell>
+
+        <!-- Download Start -->
+        <mxCell id="download-start" value="Download Request&#xa;/storage/{id}" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FF9800;strokeColor=#F57C00;fontSize=12;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="2560" y="2020" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- File Check -->
+        <mxCell id="download-check" value="File Exists?&#xa;MinIO Check" style="rhombus;whiteSpace=wrap;html=1;fillColor=#2196F3;strokeColor=#1565C0;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="2760" y="2020" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Stream File -->
+        <mxCell id="download-stream" value="Stream File&#xa;Chunk Transfer&#xa;Resume Support" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4CAF50;strokeColor=#2E7D32;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="2960" y="2030" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Not Found -->
+        <mxCell id="download-error" value="❌ File Not Found&#xa;Return 404" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F44336;strokeColor=#D32F2F;fontSize=11;fontStyle=1;fontColor=white;" vertex="1" parent="1">
+          <mxGeometry x="2760" y="2150" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- BUSINESS RULES -->
+        <mxCell id="rules-layer" value="📜 BUSINESS RULES" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#AD1457;fontSize=18;fontStyle=1;verticalAlign=top;spacingTop=20;" vertex="1" parent="1">
+          <mxGeometry x="60" y="2420" width="3100" height="200" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rules-upload" value="UPLOAD RULES&#xa;&#xa;• Max file size: 100MB&#xa;• Allowed formats: MP4, AVI, MOV&#xa;• JWT token required&#xa;• Rate limit: 10 req/min&#xa;• Duplicate file check&#xa;• Virus scan validation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBEE;strokeColor=#F44336;fontSize=12;align=left;verticalAlign=top;spacingLeft=15;spacingTop=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="2470" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rules-processing" value="⚙️ PROCESSING RULES&#xa;&#xa;• Auto compression to H.264&#xa;• Quality: 720p/1080p adaptive&#xa;• Max processing time: 30min&#xa;• Retry failed jobs: 3x&#xa;• Queue priority: FIFO&#xa;• Progress tracking in Redis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E8;strokeColor=#4CAF50;fontSize=12;align=left;verticalAlign=top;spacingLeft=15;spacingTop=15;" vertex="1" parent="1">
+          <mxGeometry x="480" y="2470" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rules-storage" value="STORAGE RULES&#xa;&#xa;• Files stored for 30 days&#xa;• Auto cleanup after expiry&#xa;• Backup to AWS S3&#xa;• CDN distribution ready&#xa;• Access logs maintained&#xa;• Download link expires 24h" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#2196F3;fontSize=12;align=left;verticalAlign=top;spacingLeft=15;spacingTop=15;" vertex="1" parent="1">
+          <mxGeometry x="810" y="2470" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rules-notification" value="📧 NOTIFICATION RULES&#xa;&#xa;• Email sent on completion&#xa;• SMS for premium users&#xa;• Webhook callbacks available&#xa;• Error notifications immediate&#xa;• Progress updates every 25%&#xa;• Delivery confirmation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#9C27B0;fontSize=12;align=left;verticalAlign=top;spacingLeft=15;spacingTop=15;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="2470" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rules-security" value="SECURITY RULES&#xa;&#xa;• JWT expires in 24h&#xa;• Rate limiting per IP&#xa;• Input sanitization&#xa;• SQL injection prevention&#xa;• CORS policy enforced&#xa;• Audit logs enabled" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#FF9800;fontSize=12;align=left;verticalAlign=top;spacingLeft=15;spacingTop=15;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="2470" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rules-performance" value="PERFORMANCE RULES&#xa;&#xa;• Auto-scaling based on load&#xa;• Connection pooling: max 100&#xa;• Cache TTL: 5 minutes&#xa;• CDN cache: 1 hour&#xa;• Database indexing optimized&#xa;• Health checks every 30s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F8E9;strokeColor=#689F38;fontSize=12;align=left;verticalAlign=top;spacingLeft=15;spacingTop=15;" vertex="1" parent="1">
+          <mxGeometry x="1800" y="2470" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rules-monitoring" value="MONITORING RULES&#xa;&#xa;• Real-time metrics collection&#xa;• Alert on 95% resource usage&#xa;• Error rate threshold: 5%&#xa;• Response time SLA: &lt;2s&#xa;• Uptime target: 99.9%&#xa;• Log retention: 90 days" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2F1;strokeColor=#00695C;fontSize=12;align=left;verticalAlign=top;spacingLeft=15;spacingTop=15;" vertex="1" parent="1">
+          <mxGeometry x="2130" y="2470" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rules-compliance" value="COMPLIANCE RULES&#xa;&#xa;• LGPD/GDPR compliant&#xa;• Data encryption at rest&#xa;• PCI DSS for payments&#xa;• ISO 27001 standards&#xa;• Regular security audits&#xa;• Incident response plan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFEBE9;strokeColor=#5D4037;fontSize=12;align=left;verticalAlign=top;spacingLeft=15;spacingTop=15;" vertex="1" parent="1">
+          <mxGeometry x="2460" y="2470" width="280" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- CONNECTIONS -->
+        <mxCell id="conn1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1976D2;strokeWidth=4;" edge="1" parent="1" source="user" target="browser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="conn2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F57C00;strokeWidth=4;" edge="1" parent="1" source="browser" target="frontend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="conn3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7B1FA2;strokeWidth=4;" edge="1" parent="1" source="frontend" target="api-gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- FLOW CONNECTIONS -->
+        <!-- Upload Flow -->
+        <mxCell id="flow-conn1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4CAF50;strokeWidth=3;" edge="1" parent="1" source="flow-start" target="flow-auth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="flow-conn2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4CAF50;strokeWidth=3;" edge="1" parent="1" source="flow-auth" target="flow-file-check">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="flow-conn3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4CAF50;strokeWidth=3;" edge="1" parent="1" source="flow-file-check" target="flow-storage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="flow-conn4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4CAF50;strokeWidth=3;" edge="1" parent="1" source="flow-storage" target="flow-queue">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="flow-conn5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4CAF50;strokeWidth=3;" edge="1" parent="1" source="flow-queue" target="flow-processing">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="flow-conn6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4CAF50;strokeWidth=3;" edge="1" parent="1" source="flow-processing" target="flow-notification">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="flow-conn7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4CAF50;strokeWidth=3;" edge="1" parent="1" source="flow-notification" target="flow-success">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Error Connections -->
+        <mxCell id="flow-error1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F44336;strokeWidth=3;" edge="1" parent="1" source="flow-auth" target="flow-auth-error">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="flow-error2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F44336;strokeWidth=3;" edge="1" parent="1" source="flow-file-check" target="flow-file-error">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="flow-error3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F44336;strokeWidth=3;" edge="1" parent="1" source="flow-processing" target="flow-process-error">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Status Flow Connections -->
+        <mxCell id="status-conn1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2196F3;strokeWidth=3;" edge="1" parent="1" source="status-start" target="status-redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="status-conn2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2196F3;strokeWidth=3;" edge="1" parent="1" source="status-redis" target="status-db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="status-conn3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2196F3;strokeWidth=3;" edge="1" parent="1" source="status-db" target="status-response">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="status-conn4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9800;strokeWidth=3;" edge="1" parent="1" source="status-redis" target="status-cache-update">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Download Flow Connections -->
+        <mxCell id="download-conn1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF9800;strokeWidth=3;" edge="1" parent="1" source="download-start" target="download-check">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="download-conn2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4CAF50;strokeWidth=3;" edge="1" parent="1" source="download-check" target="download-stream">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="download-conn3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F44336;strokeWidth=3;" edge="1" parent="1" source="download-check" target="download-error">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Flow Labels -->
+        <mxCell id="label-success" value="✅ Valid" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#4CAF50;" vertex="1" parent="1">
+          <mxGeometry x="480" y="2000" width="40" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="label-error" value="❌ Invalid" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#F44336;" vertex="1" parent="1">
+          <mxGeometry x="390" y="2120" width="50" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="label-cache-hit" value="Cache Hit" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#4CAF50;" vertex="1" parent="1">
+          <mxGeometry x="2010" y="2000" width="60" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="label-cache-miss" value="Cache Miss" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#FF9800;" vertex="1" parent="1">
+          <mxGeometry x="1940" y="2120" width="60" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="label-file-found" value="Found" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#4CAF50;" vertex="1" parent="1">
+          <mxGeometry x="2890" y="2000" width="40" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="label-file-not-found" value="Not Found" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#F44336;" vertex="1" parent="1">
+          <mxGeometry x="2820" y="2120" width="60" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

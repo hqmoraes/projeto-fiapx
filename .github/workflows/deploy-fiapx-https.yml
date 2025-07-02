@@ -1,0 +1,462 @@
+name: Deploy FIAPX HTTPS Domain
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Domain to configure (fiapx.wecando.click)'
+        required: true
+        default: 'fiapx.wecando.click'
+      cluster_node:
+        description: 'Cluster node (worker or master)'
+        required: true
+        default: 'worker'
+        type: choice
+        options:
+          - worker
+          - master
+      deploy_frontend:
+        description: 'Deploy updated frontend'
+        required: true
+        default: true
+        type: boolean
+
+env:
+  AWS_REGION: us-east-1
+  DOMAIN_BASE: wecando.click
+  WORKER_IP: 54.210.189.246
+  MASTER_IP: 44.210.118.109
+
+jobs:
+  setup-https-domain:
+    name: Setup HTTPS Domain
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Set cluster variables
+      id: cluster
+      run: |
+        if [ "${{ github.event.inputs.cluster_node }}" == "worker" ]; then
+          echo "ip=${{ env.WORKER_IP }}" >> $GITHUB_OUTPUT
+          echo "host=worker.wecando.click" >> $GITHUB_OUTPUT
+        else
+          echo "ip=${{ env.MASTER_IP }}" >> $GITHUB_OUTPUT
+          echo "host=master.wecando.click" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Get Route53 Zone ID
+      id: route53
+      run: |
+        ZONE_ID=$(aws route53 list-hosted-zones --query "HostedZones[?Name=='${{ env.DOMAIN_BASE }}.'].Id" --output text)
+        ZONE_ID=${ZONE_ID##*/}
+        echo "zone_id=$ZONE_ID" >> $GITHUB_OUTPUT
+        echo "✅ Found Zone ID: $ZONE_ID"
+
+    - name: Configure DNS Record
+      run: |
+        cat > dns-record.json << EOF
+        {
+          "Comment": "FIAP-X Frontend HTTPS - ${{ github.event.inputs.domain }}",
+          "Changes": [
+            {
+              "Action": "UPSERT",
+              "ResourceRecordSet": {
+                "Name": "${{ github.event.inputs.domain }}",
+                "Type": "A",
+                "TTL": 300,
+                "ResourceRecords": [
+                  {
+                    "Value": "${{ steps.cluster.outputs.ip }}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+        EOF
+        
+        CHANGE_ID=$(aws route53 change-resource-record-sets \
+          --hosted-zone-id ${{ steps.route53.outputs.zone_id }} \
+          --change-batch file://dns-record.json \
+          --query 'ChangeInfo.Id' --output text)
+        
+        echo "✅ DNS change created: $CHANGE_ID"
+        
+        echo "⏳ Waiting for DNS propagation..."
+        aws route53 wait resource-record-sets-changed --id $CHANGE_ID
+        echo "✅ DNS propagated successfully!"
+
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ steps.cluster.outputs.host }} >> ~/.ssh/known_hosts
+
+    - name: Update SSL Certificate
+      run: |
+        cat > fiapx-certificate.yaml << 'EOF'
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        metadata:
+          name: fiapx-tls-secret
+          namespace: fiapx
+        spec:
+          secretName: fiapx-tls-secret
+          issuerRef:
+            name: letsencrypt-prod
+            kind: ClusterIssuer
+          dnsNames:
+          - api.wecando.click
+          - fiapx.wecando.click
+          - auth.wecando.click
+          - upload.wecando.click
+          - processing.wecando.click
+          - storage.wecando.click
+        EOF
+        
+        scp fiapx-certificate.yaml ubuntu@${{ steps.cluster.outputs.host }}:/tmp/
+        ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl apply -f /tmp/fiapx-certificate.yaml"
+        echo "✅ SSL certificate updated"
+
+    - name: Update Ingress Configuration
+      run: |
+        scp infrastructure/kubernetes/ingress/fiapx-ingress.yaml ubuntu@${{ steps.cluster.outputs.host }}:/tmp/
+        ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl apply -f /tmp/fiapx-ingress.yaml"
+        echo "✅ Ingress configuration updated"
+
+    - name: Wait for SSL Certificate
+      run: |
+        echo "⏳ Waiting for SSL certificate generation..."
+        for i in {1..30}; do
+          if ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl get certificate fiapx-tls-secret -n fiapx -o jsonpath='{.status.conditions[0].status}'" | grep -q "True"; then
+            echo "✅ SSL certificate generated successfully!"
+            break
+          fi
+          echo -n "."
+          sleep 10
+        done
+
+    - name: Verify Ingress Status
+      run: |
+        echo "📊 Ingress Status:"
+        ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl get ingress fiapx-ingress -n fiapx"
+        
+        echo ""
+        echo "🔒 Certificate Status:"
+        ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl get certificate fiapx-tls-secret -n fiapx"
+
+  deploy-frontend:
+    name: Deploy Frontend HTTPS
+    runs-on: ubuntu-latest
+    needs: setup-https-domain
+    if: github.event.inputs.deploy_frontend == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set cluster variables
+      id: cluster
+      run: |
+        if [ "${{ github.event.inputs.cluster_node }}" == "worker" ]; then
+          echo "host=worker.wecando.click" >> $GITHUB_OUTPUT
+        else
+          echo "host=master.wecando.click" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Create HTTPS Frontend Configuration
+      run: |
+        cd frontend/
+        
+        # Create HTTPS config
+        cat > config-https.js << 'EOF'
+        // Configuração HTTPS para produção - fiapx.wecando.click
+        const CONFIG = {
+            // URLs HTTPS via Ingress (produção)
+            AUTH_SERVICE_URL: 'https://api.wecando.click/auth',
+            UPLOAD_SERVICE_URL: 'https://api.wecando.click/upload', 
+            PROCESSING_SERVICE_URL: 'https://api.wecando.click/processing',
+            STORAGE_SERVICE_URL: 'https://api.wecando.click/storage',
+            
+            // Configurações da aplicação
+            APP_NAME: 'FIAP X - Video Processing Platform',
+            MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB para produção
+            ALLOWED_VIDEO_TYPES: [
+                'video/mp4', 'video/avi', 'video/mov', 'video/mkv', 'video/webm',
+                'video/x-matroska', 'video/quicktime', 'video/x-msvideo',
+                'video/x-ms-wmv', 'video/3gpp', 'video/x-flv',
+                'application/octet-stream'
+            ],
+            
+            POLLING_INTERVAL: 5000,
+            MAX_POLLING_ATTEMPTS: 120,
+            DEBUG: false,
+            ENVIRONMENT: 'production',
+            VERSION: '2.4.0-https',
+            API_BASE_URL: 'https://api.wecando.click',
+            FRONTEND_URL: 'https://fiapx.wecando.click'
+        };
+        
+        const ERROR_MESSAGES = {
+            NETWORK_ERROR: 'Erro de conexão. Verifique sua internet.',
+            AUTH_FAILED: 'Falha na autenticação. Verifique suas credenciais.',
+            FILE_TOO_LARGE: `Arquivo muito grande. Máximo: ${CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB`,
+            INVALID_FILE_TYPE: 'Tipo de arquivo não suportado.',
+            UPLOAD_FAILED: 'Falha no upload do arquivo.',
+            SERVER_ERROR: 'Erro interno do servidor.',
+            SSL_ERROR: 'Erro de certificado SSL. Tente novamente.',
+            CORS_ERROR: 'Erro de CORS. Contate o administrador.',
+        };
+        
+        const SUCCESS_MESSAGES = {
+            LOGIN_SUCCESS: 'Login realizado com sucesso!',
+            REGISTER_SUCCESS: 'Registro realizado com sucesso!',
+            UPLOAD_SUCCESS: 'Upload realizado com sucesso!',
+            LOGOUT_SUCCESS: 'Logout realizado com sucesso!',
+            PROCESSING_COMPLETE: 'Processamento concluído!',
+        };
+        
+        if (typeof module !== 'undefined' && module.exports) {
+            module.exports = { CONFIG, ERROR_MESSAGES, SUCCESS_MESSAGES };
+        }
+        EOF
+        
+        # Backup original and apply HTTPS config
+        cp config.js config.js.backup
+        cp config-https.js config.js
+        
+        echo "✅ HTTPS configuration applied"
+
+    - name: Create Dockerfile
+      run: |
+        cd frontend/
+        cat > Dockerfile << 'EOF'
+        FROM nginx:alpine
+        
+        # Copiar arquivos do frontend
+        COPY . /usr/share/nginx/html/
+        
+        # Configuração do nginx
+        RUN echo 'server { \
+            listen 80; \
+            server_name _; \
+            root /usr/share/nginx/html; \
+            index index.html; \
+            \
+            # Health check endpoint \
+            location /health { \
+                access_log off; \
+                return 200 "OK\n"; \
+                add_header Content-Type text/plain; \
+            } \
+            \
+            # SPA fallback \
+            location / { \
+                try_files $uri $uri/ /index.html; \
+            } \
+            \
+            # Security headers \
+            add_header X-Frame-Options "SAMEORIGIN" always; \
+            add_header X-Content-Type-Options "nosniff" always; \
+            add_header X-XSS-Protection "1; mode=block" always; \
+            add_header Referrer-Policy "strict-origin-when-cross-origin" always; \
+            add_header Content-Security-Policy "default-src '\''self'\''; script-src '\''self'\'' '\''unsafe-inline'\''; style-src '\''self'\'' '\''unsafe-inline'\''; img-src '\''self'\'' data:; connect-src '\''self'\'' https://api.wecando.click;" always; \
+        }' > /etc/nginx/conf.d/default.conf
+        
+        EXPOSE 80
+        CMD ["nginx", "-g", "daemon off;"]
+        EOF
+
+    - name: Build and Push Docker Image
+      run: |
+        cd frontend/
+        
+        IMAGE_TAG="hmoraes/fiapx-frontend:v2.4-https-$(date +%s)"
+        
+        docker build -t $IMAGE_TAG .
+        docker tag $IMAGE_TAG hmoraes/fiapx-frontend:latest-https
+        
+        docker push $IMAGE_TAG
+        docker push hmoraes/fiapx-frontend:latest-https
+        
+        echo "✅ Frontend image built and pushed: $IMAGE_TAG"
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ steps.cluster.outputs.host }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to Kubernetes
+      run: |
+        cat > frontend-https-deployment.yaml << EOF
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: frontend-deployment
+          namespace: fiapx
+          labels:
+            app: frontend
+            version: v2.4-https
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: frontend
+          template:
+            metadata:
+              labels:
+                app: frontend
+                version: v2.4-https
+              annotations:
+                deployment/revision: "$(date +%s)"
+            spec:
+              affinity:
+                podAntiAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app: frontend
+                      topologyKey: kubernetes.io/hostname
+              containers:
+              - name: frontend
+                image: ${{ env.IMAGE_TAG }}
+                imagePullPolicy: Always
+                ports:
+                - containerPort: 80
+                  protocol: TCP
+                resources:
+                  requests:
+                    memory: "64Mi"
+                    cpu: "50m"
+                  limits:
+                    memory: "128Mi"
+                    cpu: "100m"
+                livenessProbe:
+                  httpGet:
+                    path: /health
+                    port: 80
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+                readinessProbe:
+                  httpGet:
+                    path: /health
+                    port: 80
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 3
+                env:
+                - name: NGINX_HOST
+                  value: "fiapx.wecando.click"
+                - name: NGINX_PORT
+                  value: "80"
+                - name: FRONTEND_VERSION
+                  value: "v2.4-https"
+              restartPolicy: Always
+        EOF
+        
+        scp frontend-https-deployment.yaml ubuntu@${{ steps.cluster.outputs.host }}:/tmp/
+        ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl apply -f /tmp/frontend-https-deployment.yaml"
+        
+        echo "⏳ Waiting for deployment rollout..."
+        ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl rollout status deployment/frontend-deployment -n fiapx --timeout=300s"
+
+    - name: Verify Deployment
+      run: |
+        echo "📊 Frontend Deployment Status:"
+        ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl get pods -l app=frontend -n fiapx"
+        
+        echo ""
+        echo "🌐 Frontend Service Status:"
+        ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl get services -l app=frontend -n fiapx"
+        
+        echo ""
+        echo "🔗 Ingress Status:"
+        ssh ubuntu@${{ steps.cluster.outputs.host }} "kubectl get ingress fiapx-ingress -n fiapx"
+
+  test-endpoints:
+    name: Test HTTPS Endpoints
+    runs-on: ubuntu-latest
+    needs: [setup-https-domain, deploy-frontend]
+    if: always() && needs.setup-https-domain.result == 'success'
+    
+    steps:
+    - name: Test DNS Resolution
+      run: |
+        echo "🔍 Testing DNS resolution..."
+        for i in {1..10}; do
+          if nslookup ${{ github.event.inputs.domain }} >/dev/null 2>&1; then
+            RESOLVED_IP=$(nslookup ${{ github.event.inputs.domain }} | grep -A1 "Name:" | tail -1 | awk '{print $2}')
+            echo "✅ DNS resolving: ${{ github.event.inputs.domain }} → $RESOLVED_IP"
+            break
+          fi
+          echo -n "."
+          sleep 5
+        done
+
+    - name: Test HTTPS Endpoints
+      run: |
+        echo "🧪 Testing HTTPS endpoints..."
+        
+        # Test frontend
+        echo "Testing Frontend: https://${{ github.event.inputs.domain }}"
+        if curl -k -I "https://${{ github.event.inputs.domain }}" 2>/dev/null | grep -q "200\|301\|302"; then
+          echo "✅ Frontend accessible"
+        else
+          echo "⚠️ Frontend may still be propagating"
+        fi
+        
+        # Test API endpoints
+        echo ""
+        echo "Testing API endpoints:"
+        for service in auth upload processing storage; do
+          echo -n "  https://api.wecando.click/${service}/health - "
+          if curl -k -I "https://api.wecando.click/${service}/health" 2>/dev/null | grep -q "200\|404"; then
+            echo "✅"
+          else
+            echo "⚠️"
+          fi
+        done
+
+    - name: Summary
+      run: |
+        echo ""
+        echo "🎉 FIAP-X HTTPS Domain Setup Complete!"
+        echo "=================================================="
+        echo ""
+        echo "📋 Summary:"
+        echo "  🌐 Frontend URL: https://${{ github.event.inputs.domain }}"
+        echo "  🔧 API Base URL: https://api.wecando.click"
+        echo "  🔒 SSL: Let's Encrypt (automatic renewal)"
+        echo "  📡 DNS: Route53 configured"
+        echo "  🐳 Frontend Image: ${{ env.IMAGE_TAG || 'hmoraes/fiapx-frontend:latest-https' }}"
+        echo ""
+        echo "⚠️ Note: Allow a few minutes for full DNS and SSL propagation"
+        echo "📝 Test the application by accessing: https://${{ github.event.inputs.domain }}"

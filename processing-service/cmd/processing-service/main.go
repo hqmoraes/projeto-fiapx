@@ -23,6 +23,19 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Notification message for email service
+type NotificationMessage struct {
+	UserID       int    `json:"user_id"`
+	UserEmail    string `json:"user_email"`
+	UserName     string `json:"user_name"`
+	VideoID      string `json:"video_id"`
+	VideoTitle   string `json:"video_title"`
+	Status       string `json:"status"`
+	ErrorMessage string `json:"error_message,omitempty"`
+	ProcessedAt  string `json:"processed_at"`
+	Type         string `json:"type"` // "success", "error", "warning"
+}
+
 type ProcessingService struct {
 	MinioClient *minio.Client
 	RabbitConn  *amqp.Connection
@@ -222,6 +235,9 @@ func (ps *ProcessingService) StartProcessingWorker() {
 		msg.Ack(false)
 		log.Printf("Vídeo processado com sucesso: %s", processingMsg.VideoID)
 		
+		// Send email notification
+		ps.sendEmailNotification(processingMsg.VideoID, processingMsg.UserID, result.Status, result.Error)
+		
 		// Invalidar cache após processamento concluído
 		if ps.RedisClient != nil {
 			err = ps.invalidateQueueCache()
@@ -308,6 +324,9 @@ func (ps *ProcessingService) processVideo(msg ProcessingMessage) ProcessingResul
 	result.Metadata["original_filename"] = msg.Filename
 	result.Metadata["frame_count"] = frameCount
 	result.Metadata["zip_size"] = zipSize
+
+	// Enviar notificação por email
+	ps.sendEmailNotification(msg.VideoID, msg.UserID, result.Status, result.Error)
 
 	return result
 }
@@ -714,4 +733,81 @@ func main() {
 	port := getEnv("PORT", "8080")
 	log.Printf("Processing Service iniciado na porta %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, handler))
+}
+
+// Send email notification for video processing status
+func (ps *ProcessingService) sendEmailNotification(videoID, userID, status, errorMsg string) {
+	// Get user information (mock for now - should integrate with auth-service)
+	userEmail := getUserEmail(userID)
+	userName := getUserName(userID)
+	
+	if userEmail == "" {
+		log.Printf("No email found for user %s, skipping notification", userID)
+		return
+	}
+
+	notification := NotificationMessage{
+		UserID:       parseInt(userID),
+		UserEmail:    userEmail,
+		UserName:     userName,
+		VideoID:      videoID,
+		VideoTitle:   fmt.Sprintf("Video %s", videoID), // Should get real title
+		Status:       status,
+		ErrorMessage: errorMsg,
+		ProcessedAt:  time.Now().Format("2006-01-02 15:04:05"),
+		Type:         getNotificationType(status),
+	}
+
+	notificationBytes, err := json.Marshal(notification)
+	if err != nil {
+		log.Printf("Error marshaling notification: %v", err)
+		return
+	}
+
+	// Send to notifications queue
+	err = ps.RabbitCh.Publish(
+		"",             // exchange
+		"notifications", // routing key
+		false,          // mandatory
+		false,          // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        notificationBytes,
+		})
+	if err != nil {
+		log.Printf("Error publishing notification: %v", err)
+		return
+	}
+
+	log.Printf("Email notification sent for video %s (status: %s) to %s", videoID, status, userEmail)
+}
+
+// Helper functions for user data (should integrate with auth-service)
+func getUserEmail(userID string) string {
+	// Mock implementation - in production, call auth-service API
+	// Example: GET /auth/users/{userID}
+	return getEnv("DEFAULT_USER_EMAIL", "user@fiapx.wecando.click")
+}
+
+func getUserName(userID string) string {
+	// Mock implementation - in production, call auth-service API
+	return getEnv("DEFAULT_USER_NAME", "FIAP-X User")
+}
+
+func getNotificationType(status string) string {
+	switch status {
+	case "completed":
+		return "success"
+	case "failed", "error":
+		return "error"
+	case "processing":
+		return "info"
+	default:
+		return "info"
+	}
+}
+
+func parseInt(s string) int {
+	i, _ := strconv.Atoi(s)
+	return i
 }

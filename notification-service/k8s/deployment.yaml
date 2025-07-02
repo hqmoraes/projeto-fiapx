@@ -1,0 +1,193 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: fiapx
+  labels:
+    app: notification-service
+    component: notification
+    version: v1
+    tier: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+        component: notification
+        version: v1
+        tier: backend
+      annotations:
+        prometheus.io/scrape: "false"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: notification-service
+        image: hmoraes/notification-service:latest
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: RABBITMQ_URL
+          value: "amqp://guest:guest@rabbitmq:5672/"
+        - name: SMTP_HOST
+          value: "email-smtp.us-east-1.amazonaws.com"
+        - name: SMTP_PORT
+          value: "587"
+        - name: SMTP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: ses-email-secrets
+              key: ses-smtp-username
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ses-email-secrets
+              key: ses-smtp-password
+        - name: FROM_EMAIL
+          value: "noreply@fiapx.wecando.click"
+        - name: FROM_NAME
+          value: "FIAP-X Video Processing Platform"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+            ephemeral-storage: "1Gi"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+            ephemeral-storage: "2Gi"
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "pgrep notification-service"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "pgrep notification-service"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: var-run
+          mountPath: /var/run
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: var-run
+        emptyDir: {}
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      serviceAccountName: default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: fiapx
+  labels:
+    app: notification-service
+    component: notification
+spec:
+  selector:
+    app: notification-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  type: ClusterIP
+  sessionAffinity: None
+---
+# NetworkPolicy para controle de tráfego
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: notification-service-netpol
+  namespace: fiapx
+spec:
+  podSelector:
+    matchLabels:
+      app: notification-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: fiapx
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: fiapx
+    ports:
+    - protocol: TCP
+      port: 5672  # RabbitMQ
+  - to: []  # Permite tráfego SMTP externo
+    ports:
+    - protocol: TCP
+      port: 587  # SMTP
+    - protocol: TCP
+      port: 25   # SMTP alternativo
+  - to: []  # DNS
+    ports:
+    - protocol: UDP
+      port: 53
+---
+# NOTA IMPORTANTE:
+# O secret 'ses-email-secrets' deve ser criado usando:
+#
+# kubectl create secret generic ses-email-secrets \
+#   --from-literal=ses-smtp-username=AKIAIOSFODNN7EXAMPLE \
+#   --from-literal=ses-smtp-password=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
+#   --namespace=fiapx
+#
+# Este secret contém as credenciais do Amazon SES e nunca deve
+# ser commitado no repositório por motivos de segurança.
+#
+# Para mais informações, consulte:
+# - scripts/setup-ses-notifications.sh
+# - scripts/setup-github-secrets.sh

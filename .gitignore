@@ -19,9 +19,6 @@ go.work
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-# Go module cache
-go.sum
-
 # Build artifacts
 /build/
 /dist/
@@ -37,6 +34,68 @@ go.sum
 kubeconfig*.yaml
 !kubeconfig-template.yaml
 
+# Arquivos sensíveis e credenciais
+# ================================
+
+# Chaves SSH
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+authorized_keys
+known_hosts
+
+# Configurações de Docker Hub e Registry
+.docker/config.json
+docker-config.json
+dockerhub-token.txt
+registry-credentials.json
+
+# Certificados SSL/TLS
+*.crt
+*.cert
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+
+# Arquivos de configuração com credenciais
+*-credentials.json
+*-credentials.yaml
+*-config-prod.json
+*-config-production.yaml
+secrets.json
+secrets.yaml
+credentials.env
+
+# Tokens e API Keys
+*-token.txt
+*-apikey.txt
+*-access-key.txt
+github-token.txt
+aws-credentials.txt
+jwt-secret.txt
+
+# Arquivos de backup com dados sensíveis
+*.sql.gz
+*.sql.bak
+backup-*.tar.gz
+database-backup-*
+
+# Logs que podem conter informações sensíveis
+*.log
+logs/
+/var/log/
+
+# Scripts temporários com credenciais
+setup-secrets.sh
+configure-credentials.sh
+deploy-prod.sh
+
 # Environment files
 .env
 .env.local
@@ -50,6 +109,11 @@ kubeconfig*.yaml
 *~
 .DS_Store
 Thumbs.db
+
+# Context files (not for version control)
+.project-context.md
+.service-context.md
+.scripts-context.md
 
 # Logs
 *.log
@@ -118,6 +182,34 @@ deployment.tar
 images.tar
 *.image
 
+# SECURITY: Sensitive files and credentials
+*credentials*.csv
+*_credentials*
+*-credentials*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*token*
+*secret*
+*password*
+.ssh/
+keyPrincipal*
+*keyPrincipal*
+
+# AWS and Cloud Provider credentials
+.aws/
+*aws-credentials*
+*ses-credentials*
+*smtp-credentials*
+
+# Environment files with secrets
+.env.production
+.env.staging
+.env.secret*
+*secret.env*
+
 # MacOS specific
 __MACOSX/
 
@@ -136,3 +228,43 @@ rabbitmq-data/
 # Monitoring and metrics
 /prometheus-data/
 /grafana-data/
+
+# Microsserviços - Arquivos específicos de cada serviço
+# ========================================================
+
+# API Gateway
+/api-gateway/
+
+# Auth Service
+/auth-service/
+
+# Upload Service
+/upload-service/
+
+
+# Processing Service
+/processing-service/
+
+# Storage Service
+/storage-service/
+
+# Notification Service
+/notification-service/
+
+
+# Frontend
+/frontend/
+
+# Arquivos de credenciais específicos encontrados
+temp/*credentials*.csv*
+temp/*credentials*.backup
+infrastructure/kubernetes/*/auth-secret.yaml
+!infrastructure/kubernetes/*/auth-secret-template.yaml
+
+
+# Arquivos de credenciais específicos encontrados
+temp/*credentials*.csv*
+temp/*credentials*.backup
+infrastructure/kubernetes/*/auth-secret.yaml
+!infrastructure/kubernetes/*/auth-secret-template.yaml
+

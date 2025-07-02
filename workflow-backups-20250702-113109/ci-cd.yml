@@ -1,0 +1,280 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  GO_VERSION: '1.21'
+  DOCKER_REGISTRY: hmoraes
+  PROJECT_NAME: fiapx
+
+jobs:
+  test:
+    name: Test and Quality Gate
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fiapx_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 30s
+          --health-timeout 30s
+          --health-retries 3
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install dependencies
+      run: make deps
+
+    - name: Format check
+      run: |
+        make fmt
+        git diff --exit-code
+
+    - name: Lint
+      run: make lint
+
+    - name: Unit tests
+      run: make test-unit
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/fiapx_test?sslmode=disable
+        REDIS_URL: redis://localhost:6379
+        RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+
+    - name: Integration tests
+      run: make test-integration
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/fiapx_test?sslmode=disable
+        REDIS_URL: redis://localhost:6379
+        RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+
+    - name: E2E tests
+      run: make test-e2e
+      env:
+        DATABASE_URL: postgres://postgres:postgres@localhost:5432/fiapx_test?sslmode=disable
+        REDIS_URL: redis://localhost:6379
+        RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+
+    - name: Coverage check
+      run: make coverage-check
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./auth-service/coverage.out,./upload-service/coverage.out,./processing-service/coverage.out,./storage-service/coverage.out
+        fail_ci_if_error: true
+
+    - name: Quality Gate
+      run: make quality-gate
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Run Gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-fmt sarif -out gosec.sarif ./...'
+
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: gosec.sarif
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  build:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha
+
+    - name: Build and push auth-service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./auth-service
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}-auth-service:${{ steps.meta.outputs.tags }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push upload-service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./upload-service
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}-upload-service:${{ steps.meta.outputs.tags }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push processing-service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./processing-service
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}-processing-service:${{ steps.meta.outputs.tags }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push storage-service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./storage-service
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}-storage-service:${{ steps.meta.outputs.tags }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure kubectl
+      uses: azure/k8s-set-context@v1
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl apply -f infrastructure/kubernetes/ -n fiapx
+        kubectl rollout restart deployment/auth-service -n fiapx
+        kubectl rollout restart deployment/upload-service -n fiapx
+        kubectl rollout restart deployment/processing-service -n fiapx
+        kubectl rollout restart deployment/storage-service -n fiapx
+
+    - name: Wait for rollout
+      run: |
+        kubectl rollout status deployment/auth-service -n fiapx --timeout=300s
+        kubectl rollout status deployment/upload-service -n fiapx --timeout=300s
+        kubectl rollout status deployment/processing-service -n fiapx --timeout=300s
+        kubectl rollout status deployment/storage-service -n fiapx --timeout=300s
+
+    - name: Health check
+      run: |
+        sleep 30
+        make health-check
+
+  notify:
+    name: Notify Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always()
+    
+    steps:
+    - name: Notify success
+      if: needs.deploy.result == 'success'
+      run: |
+        echo "✅ Deploy realizado com sucesso!"
+        # Aqui você pode adicionar notificação via Slack, email, etc.
+
+    - name: Notify failure
+      if: needs.deploy.result == 'failure'
+      run: |
+        echo "❌ Deploy falhou!"
+        # Aqui você pode adicionar notificação de falha

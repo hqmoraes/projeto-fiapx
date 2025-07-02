@@ -1,0 +1,14 @@
+# Temporary script files
+*.tmp
+temp-*
+*-temp*
+
+# SSH keys
+*.pem
+*.key
+
+# Docker credentials
+.docker-creds
+
+# Context files (not for version control)
+.scripts-context.md
