@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
-	"time"
-	"strings"
 	"regexp"
-	"math/rand"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -128,7 +128,7 @@ func main() {
 	r.Group(func(r chi.Router) {
 		// Middleware JWT
 		r.Use(jwtauth.Verifier(tokenAuth))
-		r.Use(jwtauth.Authenticator)
+		r.Use(jwtauth.Authenticator(tokenAuth))
 
 		r.Get("/me", handleGetMe)
 	})
@@ -271,9 +271,9 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 func handleGetMe(w http.ResponseWriter, r *http.Request) {
 	_, claims, _ := jwtauth.FromContext(r.Context())
-	
+
 	userID := int(claims["user_id"].(float64))
-	
+
 	var user User
 	err := db.QueryRow(
 		"SELECT id, username, email FROM users WHERE id = $1",
@@ -306,14 +306,14 @@ func getEnv(key, defaultValue string) string {
 func generateValidUsername(name, email string) string {
 	// Remover acentos e caracteres especiais, converter para minúsculas
 	name = strings.ToLower(name)
-	
+
 	// Substituir espaços por underscores
 	name = strings.ReplaceAll(name, " ", "_")
-	
+
 	// Remover caracteres especiais (manter apenas letras, números e underscores)
 	reg := regexp.MustCompile(`[^a-z0-9_]`)
 	username := reg.ReplaceAllString(name, "")
-	
+
 	// Se o username ficou vazio, usar parte do email
 	if username == "" {
 		emailParts := strings.Split(email, "@")
@@ -321,15 +321,15 @@ func generateValidUsername(name, email string) string {
 			username = emailParts[0]
 		}
 	}
-	
+
 	// Limitar tamanho máximo
 	if len(username) > 20 {
 		username = username[:20]
 	}
-	
+
 	// Adicionar número aleatório para evitar duplicatas
 	randomNum := rand.Intn(1000)
 	username = username + strconv.Itoa(randomNum)
-	
+
 	return username
 }
