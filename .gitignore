@@ -120,6 +120,12 @@ deployment.tar
 images.tar
 *.image
 
+# SECURITY: Scripts com credenciais (NUNCA committar)
+*-secrets.sh
+*secrets*.sh
+setup-github-secrets.sh
+configure-*-secrets.sh
+
 # SECURITY: Sensitive files and credentials
 *credentials*.csv
 *_credentials*
